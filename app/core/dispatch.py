@@ -74,15 +74,22 @@ class DispatchOptimizer:
         if status != pulp.LpStatusOptimal:
             return None
             
-        # Extract schedule
+        # Extract schedule and granular savings
         schedule = []
         total_discharge_kwh = 0.0
+        dg_savings_val = 0.0
         
         for t in range(self.intervals):
             c_val = pulp.value(charge[t])
             d_val = pulp.value(discharge[t])
             s_val = pulp.value(soc[t+1])
+            d_kwh = d_val * 0.25
             
+            # DG Savings: (Discharge * (DG Cost - Tariff))
+            # Logic: If we discharge during DG outage, we save the delta between DG and Grid
+            if self.dg_running[t] and d_val > 0.1:
+                dg_savings_val += d_kwh * (self.dg_cost - self.tariff[t])
+
             # Time calculation for multi-day
             day = t // 96
             interval_in_day = t % 96
@@ -90,7 +97,7 @@ class DispatchOptimizer:
             minute = (interval_in_day % 4) * 15
             time_str = f"D{day+1} {hour:02d}:{minute:02d}"
             
-            total_discharge_kwh += d_val * 0.25
+            total_discharge_kwh += d_kwh
             
             schedule.append({
                 "time": time_str,
@@ -105,5 +112,6 @@ class DispatchOptimizer:
             "schedule": schedule,
             "total_savings": float(pulp.value(prob.objective)),
             "total_discharge_kwh": total_discharge_kwh,
+            "dg_savings": float(dg_savings_val),
             "status": "Optimal"
         }

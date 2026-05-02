@@ -58,8 +58,9 @@ class PipelineContext:
     data_quality_issues: List[str] = field(default_factory=list)
     
     # Stage 2: Forecasting (optional)
-    load_forecast_24h: Optional[List[float]] = None
-    solar_forecast_24h: Optional[List[float]] = None
+    load_forecast_horizon: Optional[List[float]] = None
+    solar_forecast_horizon: Optional[List[float]] = None
+    dg_running_profile: Optional[List[bool]] = None
     forecast_confidence: float = 0.0
     
     # Stage 3: Optimization
@@ -98,7 +99,7 @@ class PipelineOrchestrator:
     def __init__(self):
         self.logger = logging.getLogger(__name__)
     
-    async def run(self, request: AnalysisRequest) -> PipelineContext:
+    async def run(self, request: AnalysisRequest, status_callback=None) -> PipelineContext:
         """Main entry point: orchestrates entire pipeline with Self-Healing"""
         analysis_id = str(uuid.uuid4())
         context = PipelineContext(analysis_id=analysis_id, request=request)
@@ -110,12 +111,22 @@ class PipelineOrchestrator:
         
         try:
             # Stage 1: Data Ingestion (supports CSV)
+            if status_callback: await status_callback("ingesting")
             context = await self._stage_ingest_data(context)
+            
+            # ENSURE DATA INTEGRITY (Fallback to synthetic)
+            context = self._ensure_ingested_data(context)
+            
             # Stage 2: Forecasting
+            if status_callback: await status_callback("forecasting")
             context = await self._stage_forecast(context)
+            
             # Stage 3: Optimization (Hybrid + Multi-day + Safety Margins)
+            if status_callback: await status_callback("optimizing")
             context = await self._stage_optimize(context)
+            
             # Stage 4: Financial Analysis
+            if status_callback: await status_callback("calculating")
             context = await self._stage_calculate_financials(context)
             
             # --- ADVANCED STAGES ---
@@ -124,10 +135,14 @@ class PipelineOrchestrator:
             context.sensitivity = await self._stage_analyze_sensitivity(context)
             
             # Final Stages
+            self.logger.info("[Pipeline] Making investment decision...")
             context = await self._stage_make_decision(context)
+            
+            self.logger.info("[Pipeline] Calibrating realism...")
             context = await self._stage_calibrate_realism(context)
             
             # SELF-HEALING AGENT: Monitor results and apply fixes if needed
+            self.logger.info("[Pipeline] Running self-healing agent...")
             context.healing_logs = healing_agent.monitor_and_fix(context, request)
             
             self.logger.info(f"[Pipeline] Completed {analysis_id} successfully")
@@ -138,11 +153,13 @@ class PipelineOrchestrator:
             raise
     
     async def _stage_ingest_data(self, context: PipelineContext) -> PipelineContext:
-        """Stage 1: Ingest and validate load/solar data (supports CSV)"""
-        self.logger.info("[Stage 1] Data Ingestion starting...")
+        """Stage 1: Ingest and validate load/solar data. Always succeeds."""
+        self.logger.info(f"[Stage 1] Data Ingestion starting (Mode: {'Real' if context.request.use_real_data else 'Synthetic'})...")
+        req = context.request
+        
         try:
-            req = context.request
-            if req.csv_file_id:
+            # MODE A: REAL DATA (CSV)
+            if req.use_real_data and req.csv_file_id:
                 from app.core.data_processor import DataProcessor
                 dp = DataProcessor()
                 file_path = f"data/uploads/{req.csv_file_id}.csv"
@@ -150,37 +167,86 @@ class PipelineOrchestrator:
                     csv_data = await dp.process_csv(file_path)
                     context.load_profile_15min = csv_data['load_profile']
                     context.solar_generation_15min = csv_data['solar_profile']
-                    self.logger.info(f"[Stage 1] Loaded {len(context.load_profile_15min)} points from CSV")
-
-            if not hasattr(context, 'load_profile_15min') or not context.load_profile_15min:
-                if req.load_profile:
-                    context.load_profile_15min = req.load_profile
+                    context.dg_running_profile = csv_data.get('dg_profile')
+                    self.logger.info(f"[Stage 1] Successfully loaded {len(context.load_profile_15min)} points from CSV")
                 else:
-                    context.load_profile_15min = self._generate_synthetic_load(
-                        annual_kwh=req.annual_kwh or 500000
-                    )
-            
-            if not hasattr(context, 'solar_generation_15min') or not context.solar_generation_15min:
-                if req.solar_kw > 0:
-                    context.solar_generation_15min = self._generate_solar_profile(
-                        capacity_kw=req.solar_kw,
-                        state=req.state.value
-                    )
-                else:
-                    context.solar_generation_15min = [0.0] * len(context.load_profile_15min)
+                    self.logger.warning(f"[Stage 1] CSV not found ({req.csv_file_id}), falling back to synthetic")
+                    context.data_quality_issues.append("CSV not found — using synthetic baseline")
+        except Exception as e:
+            self.logger.error(f"[Stage 1] CSV processing failed: {e}, falling back to synthetic")
+            context.data_quality_issues.append(f"CSV error ({e}) — using synthetic baseline")
+        
+        # ALWAYS ensure profiles exist (synthetic fallback)
+        if not context.load_profile_15min:
+            self.logger.info("[Stage 1] Generating synthetic load profile")
+            context.load_profile_15min = self._generate_synthetic_load(
+                annual_kwh=req.annual_kwh or 500000
+            )
+            context.data_quality_issues.append("Using estimated load profile (Synthetic Mode)")
+        
+        if not context.solar_generation_15min:
+            if req.solar_kw > 0:
+                context.solar_generation_15min = self._generate_solar_profile(
+                    capacity_kw=req.solar_kw, state=req.state.value
+                )
             else:
                 context.solar_generation_15min = [0.0] * len(context.load_profile_15min)
-            
-            context.data_quality_score = self._calculate_data_quality(context.load_profile_15min)
-            context.load_profile_hourly = self._resample_to_hourly(context.load_profile_15min)
-            return context
-        except Exception as e:
-            self.logger.error(f"[Stage 1] Data ingestion failed: {str(e)}")
-            raise
+        
+        # Build DG running profile from schedule or hours
+        if not context.dg_running_profile:
+            n = len(context.load_profile_15min)
+            dg_profile = [False] * n
+            schedule = req.dg_schedule_hours or self._default_dg_schedule(req.dg_hours_per_day)
+            for i in range(n):
+                hour = (i // 4) % 24
+                if hour in schedule:
+                    dg_profile[i] = True
+            context.dg_running_profile = dg_profile
+            self.logger.info(f"[Stage 1] DG profile built: {sum(dg_profile)} intervals active")
+        
+        context.data_quality_score = self._calculate_data_quality(context.load_profile_15min)
+        context.load_profile_hourly = self._resample_to_hourly(context.load_profile_15min)
+        return context
+    
+    def _default_dg_schedule(self, hours_per_day: float) -> list:
+        """Build a list of hours when DG runs, anchored at evening peak"""
+        n_hours = min(int(round(hours_per_day)), 12)
+        # Anchor at 18:00 and expand outward
+        base = list(range(18, 18 + n_hours))
+        return [h % 24 for h in base]
+    
+    def _ensure_ingested_data(self, context: PipelineContext) -> PipelineContext:
+        """Final safety assertion before Stage 2 — guarantees valid state"""
+        if not context.load_profile_15min or not context.solar_generation_15min:
+            self.logger.error("[Pipeline] Critical: data still missing after Stage 1")
+            raise ValueError("Data ingestion failed to produce valid profiles")
+        
+        # Ensure forecast horizon attributes always exist
+        if not context.load_forecast_horizon:
+            context.load_forecast_horizon = context.load_profile_15min[-96:]
+        if not context.solar_forecast_horizon:
+            context.solar_forecast_horizon = context.solar_generation_15min[-96:]
+        return context
     
     async def _stage_forecast(self, context: PipelineContext) -> PipelineContext:
         """Stage 2: Forecast next 24 hours of load/solar using ML & extract SHAP XAI"""
         self.logger.info("[Stage 2] ML Forecasting & SHAP Analysis starting...")
+        
+        # --- FAST TRACK: SKIP ML FOR SYNTHETIC DATA ---
+        if not context.request.use_real_data:
+            self.logger.info("[Stage 2] FAST MODE: Skipping ML/SHAP for synthetic analysis")
+            context.load_forecast_24h = context.load_profile_15min[-96:]
+            context.solar_forecast_24h = context.solar_generation_15min[-96:]
+            context.forecast_confidence = 0.95
+            context.xai_payload = {
+                "confidence_score": 0.95,
+                "insights": [
+                    {"time": "24h Avg", "explanation": "Synthetic profile based on facility annual consumption.", "impact_percent": 100, "direction": "neutral"}
+                ]
+            }
+            return context
+
+        # --- HEAVY TRACK: ML + SHAP (Only for Real Data) ---
         try:
             from app.ml.forecaster import EnergyForecaster
             from app.ml.xai import ExplainableAI
@@ -243,15 +309,21 @@ class PipelineOrchestrator:
             return context
         except Exception as e:
             self.logger.error(f"[Stage 2] Forecasting failed: {str(e)}")
-        """Stage 2: Multi-day Forecasting"""
+            # Fallback for 24h predictions
+            context.load_forecast_24h = context.load_profile_15min[-96:] if context.load_profile_15min else [100.0]*96
+            context.solar_forecast_24h = context.solar_generation_15min[-96:] if context.solar_generation_15min else [0.0]*96
+
+        # --- MULTI-DAY FORECASTING ---
+        self.logger.info("[Stage 2] Processing Multi-day Horizon...")
         horizon_intervals = context.request.horizon_days * 96
-        # In this production version, we extend the naive/ML forecast to the requested horizon
-        base_load = context.load_profile_15min[-96:] if context.load_profile_15min else [100.0]*96
-        base_solar = context.solar_generation_15min[-96:] if context.solar_generation_15min else [0.0]*96
         
-        # Simple multi-day repeat with random variance for demo
+        # Use existing forecasts if available, else naive repeat
+        base_load = context.load_forecast_24h or context.load_profile_15min[-96:]
+        base_solar = context.solar_forecast_24h or context.solar_generation_15min[-96:]
+        
         context.load_forecast_horizon = []
         context.solar_forecast_horizon = []
+        
         for d in range(context.request.horizon_days):
             context.load_forecast_horizon.extend([val * random.uniform(0.95, 1.05) for val in base_load])
             context.solar_forecast_horizon.extend([val * random.uniform(0.9, 1.1) for val in base_solar])
@@ -267,8 +339,11 @@ class PipelineOrchestrator:
         iex = IEXPriceService()
         
         # 1. APPLY FORECAST SAFETY MARGINS (Req #2)
-        safe_load = [val * 0.9 for val in context.load_forecast_horizon]
-        safe_solar = [val * 0.9 for val in context.solar_forecast_horizon]
+        load_horizon = getattr(context, 'load_forecast_horizon', []) or ([100.0] * 96)
+        solar_horizon = getattr(context, 'solar_forecast_horizon', []) or ([0.0] * 96)
+        
+        safe_load = [val * 0.9 for val in load_horizon]
+        safe_solar = [val * 0.9 for val in solar_horizon]
         
         # 2. INTEGRATE DYNAMIC TARIFF + IEX (Req #3)
         iex_prices = iex.get_market_prices(days=req.horizon_days)
@@ -281,6 +356,7 @@ class PipelineOrchestrator:
             tariff_profile.append(max(grid_price, iex_prices[t]))
             
         # 3. MULTI-DAY OPTIMIZATION (Req #4)
+        self.logger.info(f"[Stage 3] Optimization starting for {req.horizon_days} day(s)...")
         optimizer = DispatchOptimizer(
             load_forecast=safe_load,
             solar_forecast=safe_solar,
@@ -289,10 +365,12 @@ class PipelineOrchestrator:
             battery_power_kw=req.battery_power_kw,
             efficiency=0.9, # Req #5
             dg_cost=req.dg_cost_per_kwh,
-            dg_running_profile=None # Can be passed if CSV contains outages
+            dg_running_profile=getattr(context, 'dg_running_profile', None)
         )
         
         result = optimizer.solve()
+        self.logger.info(f"[Stage 3] Optimization complete. Savings: {result.get('total_savings', 0) if result else 'N/A'}")
+        
         if result:
             context.dispatch_schedule = result['schedule']
             context.dispatch_savings_total = result['total_savings']
@@ -304,6 +382,20 @@ class PipelineOrchestrator:
                 "discharge": [s['discharge_kw'] for s in day1],
                 "soc": [s['soc_percent'] for s in day1],
                 "tariffs": [s['tariff'] for s in day1]
+            }
+            
+            # DG savings metadata
+            dg_savings_day = result.get('dg_savings', 0.0)
+            dg_kwh_replaced = sum(
+                s['discharge_kw'] * 0.25
+                for s in day1
+                if s.get('is_dg_offset', False)
+            )
+            context.dg_savings_meta = {
+                "cost_saved_inr": round(dg_savings_day, 2),
+                "energy_replaced_kwh": round(dg_kwh_replaced, 2),
+                "annual_dg_savings_inr": round(dg_savings_day * 365, 0),
+                "dg_hours_per_day": req.dg_hours_per_day,
             }
             
             # KPIs adjusted for multi-day avg

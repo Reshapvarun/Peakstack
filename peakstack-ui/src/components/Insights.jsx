@@ -4,12 +4,33 @@ import { formatCurrency } from '../services/api';
 
 export default function Insights({ 
   insights, 
-  realism
+  realism,
+  dataQuality = []
 }) {
   if (!realism || !insights) return null;
 
   return (
     <div className="insights-wrapper" style={{ marginTop: '16px' }}>
+      {dataQuality && dataQuality.length > 0 && (
+        <div style={{ 
+          background: 'rgba(245, 158, 11, 0.1)', 
+          border: '1px solid rgba(245, 158, 11, 0.3)', 
+          borderRadius: '12px', 
+          padding: '12px 20px', 
+          marginBottom: '20px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px'
+        }}>
+          <span style={{ fontSize: '20px' }}>📊</span>
+          <div>
+            <div style={{ fontWeight: '700', color: '#d97706', fontSize: '14px' }}>Data Notice</div>
+            <div style={{ fontSize: '13px', color: '#b45309' }}>
+              {dataQuality.join('. ')}
+            </div>
+          </div>
+        </div>
+      )}
       <div className="charts-grid">
         {/* Realism Gap Section */}
         <div className="chart-container" style={{ gridColumn: 'span 1', height: 'auto', minHeight: '220px' }}>
@@ -101,5 +122,6 @@ export default function Insights({
 
 Insights.propTypes = {
   insights: PropTypes.array,
-  realism: PropTypes.object
+  realism: PropTypes.object,
+  dataQuality: PropTypes.array
 };

@@ -3,10 +3,28 @@ Pydantic models for BESS analysis API
 Task #3 & #4: Request and Response schemas
 """
 
-from pydantic import BaseModel, Field, validator
-from typing import List, Optional, Dict
+from pydantic import BaseModel, Field, validator, EmailStr
+from typing import List, Optional, Dict, Any
 from enum import Enum
 from datetime import datetime
+
+# --- AUTH SCHEMAS ---
+
+class UserCreate(BaseModel):
+    email: EmailStr
+    password: str
+
+class UserResponse(BaseModel):
+    id: int
+    email: EmailStr
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
 
 
 # ============= ENUMS =============
@@ -122,6 +140,7 @@ class AnalysisRequest(BaseModel):
     
     # New Production Features
     csv_file_id: Optional[str] = Field(None, description="ID of uploaded CSV file")
+    use_real_data: bool = Field(False, description="Whether to use uploaded CSV data (True) or synthetic data (False)")
     horizon_days: int = Field(1, ge=1, le=7, description="Optimization horizon in days")
     
     # DG + BESS Hybrid Parameters
@@ -130,6 +149,16 @@ class AnalysisRequest(BaseModel):
         ge=10.0,
         le=50.0,
         description="DG energy cost (₹/kWh)"
+    )
+    dg_hours_per_day: float = Field(
+        2.0,
+        ge=0.0,
+        le=12.0,
+        description="Average DG runtime per day (hours, 0-12)"
+    )
+    dg_schedule_hours: Optional[List[int]] = Field(
+        None,
+        description="Specific hours when DG runs (e.g. [18,19,20])"
     )
     dg_running_profile: Optional[List[bool]] = Field(
         None,
@@ -153,7 +182,7 @@ class AnalysisRequest(BaseModel):
         return v
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "state": "maharashtra",
                 "battery_kwh": 250,
@@ -405,7 +434,7 @@ class AnalysisResponse(BaseModel):
     )
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "analysis_id": "550e8400-e29b-41d4-a716-446655440000",
                 "timestamp": "2026-04-30T10:30:00Z",

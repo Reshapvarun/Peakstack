@@ -1,20 +1,32 @@
 /**
- * TASK #5: API Service for React Frontend
- * 
- * Connects React dashboard to FastAPI backend /analyze endpoint
- * Features:
- * - POST request with form inputs
- * - Response handling with state management
- * - Error handling and loading states
- * - Reusable across components
+ * TASK: API Service for React Frontend
+ * Hardened for production with robust parsing and job polling
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
 
 /**
- * Send analysis request to backend
+ * Robust response parsing helper
+ */
+async function parseResponse(res) {
+  const text = await res.text();
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch (e) {
+    throw new Error(`Server Error: ${text || res.statusText}`);
+  }
+  
+  if (!res.ok) {
+    throw new Error(data.detail || data.error || 'Request failed');
+  }
+  return data;
+}
+
+/**
+ * Send analysis request to backend (returns job_id)
  * @param {Object} params - Analysis parameters
- * @returns {Promise<Object>} - AnalysisResponse from API
+ * @returns {Promise<Object>} - { job_id: string, status: string }
  */
 export async function analyzeEnergy(params) {
   const payload = {
@@ -33,73 +45,72 @@ export async function analyzeEnergy(params) {
     utilization_factor: parseFloat(params.utilization_factor),
     industry: params.industry,
     dg_cost_per_kwh: parseFloat(params.dg_cost_per_kwh || 20.0),
+    dg_hours_per_day: parseFloat(params.dg_hours_per_day || 2.0),
     horizon_days: parseInt(params.horizon_days || 1),
     csv_file_id: params.csv_file_id || null,
+    use_real_data: !!params.use_real_data,
   };
+  
+  console.log("[API] Sending Analysis Payload:", payload);
 
-  const response = await fetch(`${API_BASE_URL}/analyze`, {
+  const res = await fetch(`${API_BASE_URL}/analyze`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
 
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || 'Analysis failed');
-  }
+  return parseResponse(res);
+}
 
-  return response.json();
+/**
+ * Poll job status until completion
+ * @param {number} jobId - Job ID
+ */
+export async function pollJob(jobId, onProgress) {
+  const maxRetries = 100; // ~5 minutes with 3s interval
+  let retries = 0;
+  
+  while (retries < maxRetries) {
+    try {
+      const res = await fetch(`${API_BASE_URL}/jobs/${jobId}`);
+      if (!res.ok) {
+         // If server is temporarily overloaded, don't crash the loop
+         if (res.status === 503 || res.status === 502) {
+           await new Promise(r => setTimeout(r, 5000));
+           continue;
+         }
+         throw new Error(`Polling failed: ${res.statusText}`);
+      }
+      
+      const data = await res.json();
+      
+      if (data.status === 'completed') return data.results;
+      if (data.status === 'failed') throw new Error(data.error || 'Analysis job failed on server.');
+      
+      if (onProgress) onProgress(data.status);
+    } catch (err) {
+      console.warn("Polling error (retrying):", err);
+      if (retries > 10 && err.message.includes('Failed to fetch')) {
+         throw new Error('Connection lost. Please check if the server is running.');
+      }
+    }
+    
+    await new Promise(r => setTimeout(r, 3000));
+    retries++;
+  }
+  throw new Error('Analysis timed out. The system might be under heavy load.');
 }
 
 /**
  * Get previously cached analysis
- * @param {string} analysisId - UUID of previous analysis
- * @returns {Promise<Object>} - AnalysisResponse
  */
 export async function getAnalysis(analysisId) {
-  const response = await fetch(`${API_BASE_URL}/analyses/${analysisId}`);
-  if (!response.ok) {
-    throw new Error('Analysis not found');
-  }
-  return response.json();
-}
-
-/**
- * Validate battery configuration
- * @param {Object} config - Battery config
- * @returns {Object} - { isValid: boolean, errors: [string] }
- */
-export function validateBatteryConfig(config) {
-  const errors = [];
-
-  if (!config.battery_kwh || config.battery_kwh < 10 || config.battery_kwh > 2000) {
-    errors.push('Battery capacity must be 10-2000 kWh');
-  }
-
-  if (!config.battery_power_kw || config.battery_power_kw < 1 || config.battery_power_kw > 500) {
-    errors.push('Battery power must be 1-500 kW');
-  }
-
-  if (config.battery_power_kw > config.battery_kwh * 10) {
-    errors.push('Battery power cannot exceed 10x capacity');
-  }
-
-  if (!config.state) {
-    errors.push('State is required');
-  }
-
-  return {
-    isValid: errors.length === 0,
-    errors,
-  };
+  const res = await fetch(`${API_BASE_URL}/analyses/${analysisId}`);
+  return parseResponse(res);
 }
 
 /**
  * Format currency (INR)
- * @param {number} value - Amount in rupees
- * @returns {string} - Formatted string
  */
 export function formatCurrency(value) {
   return new Intl.NumberFormat('en-IN', {
@@ -110,19 +121,10 @@ export function formatCurrency(value) {
   }).format(value);
 }
 
-/**
- * Format percentage
- * @param {number} value - Decimal value
- * @returns {string} - Formatted percentage
- */
-export function formatPercentage(value) {
-  return `${(value * 100).toFixed(2)}%`;
-}
-
 export default {
   analyzeEnergy,
+  pollJob,
   getAnalysis,
-  validateBatteryConfig,
   formatCurrency,
-  formatPercentage,
 };
+

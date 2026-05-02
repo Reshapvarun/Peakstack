@@ -1,11 +1,13 @@
 import React from 'react';
 import { motion } from 'framer-motion';
+import logo from '../assets/logo.png';
 
-export default function Sidebar({ inputs, updateInput, loading, onAnalyze }) {
+export default function Sidebar({ inputs, updateInput, loading, uploading, setUploading, productMode, onAnalyze }) {
   const {
     state, industry, battery_kwh, battery_power_kw, solar_kw, annual_kwh,
     tariff_energy, demand_charge, peak_tariff_difference,
     battery_cost_per_kwh, solar_cost_per_kwh, utilization_factor,
+    use_real_data,
   } = inputs;
 
   const STATES = [
@@ -29,45 +31,74 @@ export default function Sidebar({ inputs, updateInput, loading, onAnalyze }) {
     >
       {/* Logo */}
       <div className="logo-section">
-        <img src="/src/assets/logo.png" className="logo-img" alt="Peakstack" />
+        <img src={logo} className="logo-img" alt="Peakstack" />
+        <div style={{ fontSize: 10, opacity: 0.5, marginTop: 4 }}>v2.1 (Modular Mode)</div>
       </div>
 
-      {/* ── Location & Industry ── */}
-      {/* ── CSV Data Ingestion ── */}
-      <div className="sidebar-group">
-        <h3>Production Data Ingestion</h3>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <label className="btn-ghost" style={{ textAlign: 'center', cursor: 'pointer', display: 'block' }}>
-            {loading ? '⏳ Processing...' : '📁 Upload Load CSV'}
-            <input 
-              type="file" 
-              accept=".csv" 
-              style={{ display: 'none' }} 
-              onChange={async (e) => {
-                const file = e.target.files[0];
-                if (!file) return;
-                const formData = new FormData();
-                formData.append('file', file);
-                try {
-                  const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1'}/upload-data`, {
-                    method: 'POST',
-                    body: formData
-                  });
-                  const data = await res.json();
-                  updateInput('csv_file_id', data.file_id);
-                  alert(`Successfully loaded ${data.preview.count} data points!`);
-                } catch (err) {
-                  alert("Failed to upload CSV. Please check format.");
-                }
-              }}
-            />
-          </label>
-          {inputs.csv_file_id && (
-            <div style={{ fontSize: 10, color: 'var(--accent)' }}>
-              ✅ File Linked: {inputs.csv_file_id.slice(0, 8)}...
+      {/* ── Mode Indicator ── */}
+      <div className="sidebar-group" style={{ padding: '10px 12px', borderRadius: 8,
+        background: productMode === 'operations' ? 'rgba(99,102,241,0.1)' : 'rgba(16,185,129,0.1)',
+        border: `1px solid ${productMode === 'operations' ? 'rgba(99,102,241,0.3)' : 'rgba(16,185,129,0.3)'}`
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 16 }}>{productMode === 'operations' ? '🔋' : '📊'}</span>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: productMode === 'operations' ? '#818cf8' : '#10b981' }}>
+              {productMode === 'operations' ? 'OPERATIONS / AI MODE' : 'INVESTMENT ANALYSIS'}
             </div>
-          )}
+            <div style={{ fontSize: 10, opacity: 0.6 }}>
+              {productMode === 'operations' ? 'Real data required · ML + MILP active' : 'Synthetic data · Fast financial model'}
+            </div>
+          </div>
         </div>
+
+        {/* CSV Uploader — Operations only */}
+        {productMode === 'operations' && (
+          <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <label className="btn-ghost" style={{ textAlign: 'center', cursor: 'pointer', display: 'block', opacity: (loading || uploading) ? 0.7 : 1, fontSize: 12 }}>
+              {uploading ? '⏳ Uploading...' : '📁 Upload Facility CSV'}
+              <input 
+                type="file" 
+                accept=".csv" 
+                style={{ display: 'none' }} 
+                disabled={loading || uploading}
+                onChange={async (e) => {
+                  const file = e.target.files[0];
+                  if (!file) return;
+                  const formData = new FormData();
+                  formData.append('file', file);
+                  setUploading(true);
+                  try {
+                    const token = localStorage.getItem('token');
+                    const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1'}/upload-data`, {
+                      method: 'POST',
+                      headers: { 'Authorization': `Bearer ${token}` },
+                      body: formData
+                    });
+                    const data = await res.json();
+                    updateInput('csv_file_id', data.file_id);
+                    updateInput('use_real_data', true);
+                    alert(`✅ Loaded ${data.preview.count} data points!`);
+                  } catch (err) {
+                    alert('Failed to upload CSV. Please check format.');
+                  } finally {
+                    setUploading(false);
+                  }
+                }}
+              />
+            </label>
+            {inputs.csv_file_id && (
+              <div style={{ fontSize: 10, color: '#10b981', textAlign: 'center' }}>
+                ✅ File linked: {inputs.csv_file_id.slice(0, 8)}...
+              </div>
+            )}
+            {!inputs.csv_file_id && (
+              <div style={{ fontSize: 10, color: '#f59e0b', textAlign: 'center' }}>
+                ⚠️ Upload CSV to run analysis
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="sidebar-group">
@@ -202,6 +233,11 @@ export default function Sidebar({ inputs, updateInput, loading, onAnalyze }) {
           label="DG Energy Cost" val={`₹${inputs.dg_cost_per_kwh || 20}/kWh`}
           min={10} max={50} step={1} value={inputs.dg_cost_per_kwh || 20}
           onChange={v => updateInput('dg_cost_per_kwh', +v)} disabled={loading}
+        />
+        <SliderRow
+          label="DG Runtime" val={`${inputs.dg_hours_per_day || 2} hrs/day`}
+          min={0} max={12} step={0.5} value={inputs.dg_hours_per_day || 2}
+          onChange={v => updateInput('dg_hours_per_day', +v)} disabled={loading}
         />
       </div>
 
