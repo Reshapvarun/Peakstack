@@ -33,6 +33,43 @@ export default function Sidebar({ inputs, updateInput, loading, onAnalyze }) {
       </div>
 
       {/* ── Location & Industry ── */}
+      {/* ── CSV Data Ingestion ── */}
+      <div className="sidebar-group">
+        <h3>Production Data Ingestion</h3>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <label className="btn-ghost" style={{ textAlign: 'center', cursor: 'pointer', display: 'block' }}>
+            {loading ? '⏳ Processing...' : '📁 Upload Load CSV'}
+            <input 
+              type="file" 
+              accept=".csv" 
+              style={{ display: 'none' }} 
+              onChange={async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const formData = new FormData();
+                formData.append('file', file);
+                try {
+                  const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1'}/upload-data`, {
+                    method: 'POST',
+                    body: formData
+                  });
+                  const data = await res.json();
+                  updateInput('csv_file_id', data.file_id);
+                  alert(`Successfully loaded ${data.preview.count} data points!`);
+                } catch (err) {
+                  alert("Failed to upload CSV. Please check format.");
+                }
+              }}
+            />
+          </label>
+          {inputs.csv_file_id && (
+            <div style={{ fontSize: 10, color: 'var(--accent)' }}>
+              ✅ File Linked: {inputs.csv_file_id.slice(0, 8)}...
+            </div>
+          )}
+        </div>
+      </div>
+
       <div className="sidebar-group">
         <h3>Location &amp; Industry</h3>
 
@@ -121,6 +158,11 @@ export default function Sidebar({ inputs, updateInput, loading, onAnalyze }) {
           onChange={v => updateInput('annual_kwh', +v)} disabled={loading}
         />
         <SliderRow
+          label="Optimization Horizon" val={`${inputs.horizon_days || 1} Days`}
+          min={1} max={7} step={1} value={inputs.horizon_days || 1}
+          onChange={v => updateInput('horizon_days', +v)} disabled={loading}
+        />
+        <SliderRow
           label="Utilisation Factor" val={`${(utilization_factor * 100).toFixed(0)}%`}
           min={0.5} max={1.0} step={0.05} value={utilization_factor}
           onChange={v => updateInput('utilization_factor', +v)} disabled={loading}
@@ -155,6 +197,11 @@ export default function Sidebar({ inputs, updateInput, loading, onAnalyze }) {
           label="BESS CapEx / kWh" val={`₹${Number(battery_cost_per_kwh).toLocaleString('en-IN')}`}
           min={10000} max={40000} step={500} value={battery_cost_per_kwh}
           onChange={v => updateInput('battery_cost_per_kwh', +v)} disabled={loading}
+        />
+        <SliderRow
+          label="DG Energy Cost" val={`₹${inputs.dg_cost_per_kwh || 20}/kWh`}
+          min={10} max={50} step={1} value={inputs.dg_cost_per_kwh || 20}
+          onChange={v => updateInput('dg_cost_per_kwh', +v)} disabled={loading}
         />
       </div>
 

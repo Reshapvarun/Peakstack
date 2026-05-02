@@ -78,7 +78,7 @@ class EnergyForecaster:
             # Very basic day/night GHI approximation if totally missing
             df['ghi'] = np.where((df['hour'] >= 6) & (df['hour'] <= 18), 500.0, 0.0)
 
-        return df.fillna(method='bfill').fillna(0) # Forward/backward fill safely
+        return df.bfill().fillna(0) # Forward/backward fill safely
 
     def forecast(self, current_df):
         """

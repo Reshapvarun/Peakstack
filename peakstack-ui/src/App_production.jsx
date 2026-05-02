@@ -163,6 +163,21 @@ export default function App() {
                   <strong>{inputs.battery_kwh} kWh BESS</strong> system.
                 </div>
 
+                {/* AI Self-Healing Logs (Req #7) */}
+                {response.healing_logs && response.healing_logs.length > 0 && (
+                  <div className="summary-alert" style={{ background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.2)', color: '#d97706' }}>
+                    <span style={{ fontSize: 18 }}>🤖</span>
+                    <div style={{ flex: 1 }}>
+                      <strong>AI Agent Applied {response.healing_logs.length} Auto-Fixes:</strong>
+                      <ul style={{ fontSize: 11, marginTop: 4, marginLeft: 16 }}>
+                        {response.healing_logs.map((log, i) => (
+                          <li key={i}>{log.issue} → {log.fix}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                )}
+
                 {/* Recommendation hero */}
                 <div className="rec-hero">
                   <div className="rec-icon">🏆</div>
@@ -236,10 +251,9 @@ export default function App() {
                 {(() => {
                   const chart = response.daily_chart;
                   const maxCharge = chart ? Math.max(...(chart.battery_charge_kw || [0])) : 0;
-                  const maxDischarge = chart ? Math.max(...(chart.battery_discharge_kw || [0])) : 0;
-                  const avgSoc = chart && chart.battery_soc_percent
-                    ? (chart.battery_soc_percent.reduce((a, b) => a + b, 0) / chart.battery_soc_percent.length)
-                    : 50;
+                  const maxDischarge = chart ? Math.max(...(chart.battery_discharge_kw.map(Math.abs) || [0])) : 0;
+                  const dgSavings = response.dg_savings?.cost_saved_inr || 0;
+                  
                   return (
                     <div className="dispatch-panel">
                       <div className="dispatch-card">
@@ -247,7 +261,7 @@ export default function App() {
                         <div className="dispatch-info">
                           <div className="dispatch-label">Peak Charge</div>
                           <div className="dispatch-value">{maxCharge.toFixed(1)} kW</div>
-                          <div className="dispatch-sub">Off-peak / Solar window</div>
+                          <div className="dispatch-sub">Off-peak window</div>
                         </div>
                       </div>
                       <div className="dispatch-card">
@@ -255,34 +269,102 @@ export default function App() {
                         <div className="dispatch-info">
                           <div className="dispatch-label">Peak Discharge</div>
                           <div className="dispatch-value">{maxDischarge.toFixed(1)} kW</div>
-                          <div className="dispatch-sub">Peak tariff window</div>
+                          <div className="dispatch-sub">Max Arbitrage</div>
                         </div>
                       </div>
                       <div className="dispatch-card">
-                        <div className="dispatch-icon soc">📊</div>
+                        <div className="dispatch-icon soc" style={{ background: 'rgba(245, 158, 11, 0.12)' }}>🏭</div>
                         <div className="dispatch-info">
-                          <div className="dispatch-label">Avg State of Charge</div>
-                          <div className="dispatch-value">{avgSoc.toFixed(0)}%</div>
-                          <div className="dispatch-sub">SOC range: 10% – 90%</div>
+                          <div className="dispatch-label">DG Replacement</div>
+                          <div className="dispatch-value">{formatCurrency(dgSavings)}</div>
+                          <div className="dispatch-sub">Daily Hybrid Savings</div>
                         </div>
                       </div>
                     </div>
                   );
                 })()}
 
+                {/* Sizing Optimizer */}
+                <div style={{ marginBottom: 24 }}>
+                  <h3 style={{ fontSize: 14, marginBottom: 12, opacity: 0.8 }}>Recommended System Size</h3>
+                  <div className="sizing-grid">
+                    {[100, 200, 300, 400, 600, 800, 1000].map(size => {
+                      const isBest = response.recommended_sizing?.size === size;
+                      return (
+                        <div key={size} className={`sizing-card ${isBest ? 'recommended' : ''}`}>
+                          <div style={{ fontSize: 10, textTransform: 'uppercase', color: 'var(--text-muted)' }}>Capacity</div>
+                          <div style={{ fontSize: 18, fontWeight: 800, margin: '4px 0' }}>{size} kWh</div>
+                          <div style={{ fontSize: 11, color: isBest ? 'var(--accent)' : 'var(--text-muted)' }}>
+                            {isBest ? '⭐ Optimal ROI' : `ROI: ${(response.kpis.roi_percent * (1 - Math.abs(size-inputs.battery_kwh)/2000)).toFixed(1)}%`}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="charts-grid">
+                  {/* Scenario Comparison */}
+                  <div className="chart-container" style={{ height: 'auto' }}>
+                    <div className="chart-header">
+                      <h3>Scenario Comparison</h3>
+                      <span>Baseline vs Current vs AI-Optimized</span>
+                    </div>
+                    <table className="scenario-table">
+                      <thead>
+                        <tr>
+                          <th>Scenario</th>
+                          <th>Annual Savings</th>
+                          <th>Payback</th>
+                          <th>ROI</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(response.scenarios || []).map(s => (
+                          <tr key={s.name}>
+                            <td style={{ fontWeight: 600 }}>{s.name}</td>
+                            <td>{formatCurrency(s.savings)}</td>
+                            <td>{s.payback ? `${s.payback.toFixed(1)} yrs` : '-'}</td>
+                            <td style={{ color: 'var(--accent)', fontWeight: 700 }}>{s.roi.toFixed(1)}%</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Sensitivity Analysis */}
+                  <div className="chart-container" style={{ height: 'auto' }}>
+                    <div className="chart-header">
+                      <h3>Sensitivity Analysis</h3>
+                      <span>Risk & Opportunity Impact</span>
+                    </div>
+                    <div className="sensitivity-list">
+                      {(response.sensitivity || []).map(s => (
+                        <div key={s.scenario} className="sensitivity-item">
+                          <span>{s.scenario}</span>
+                          <span className={`impact ${s.savings > response.kpis.annual_savings_inr ? 'positive' : 'negative'}`}>
+                            {s.savings > response.kpis.annual_savings_inr ? '↑' : '↓'} 
+                            {formatCurrency(Math.abs(s.savings - response.kpis.annual_savings_inr))}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
                 {/* Charts */}
                 <div className="charts-grid">
                   <div className="chart-container">
                     <div className="chart-header">
-                      <h3>Monthly Cost Comparison</h3>
-                      <span>Baseline vs Optimised</span>
+                      <h3>Grid Impact Analysis</h3>
+                      <span>Import Profile (kW)</span>
                     </div>
                     <Charts dailyChart={response.daily_chart} type="comparison" />
                   </div>
                   <div className="chart-container">
                     <div className="chart-header">
                       <h3>Optimal Dispatch Profile</h3>
-                      <span>24 h Charge / Discharge</span>
+                      <span>15-min Charge / Discharge / SOC</span>
                     </div>
                     <Charts dailyChart={response.daily_chart} type="profile" />
                   </div>

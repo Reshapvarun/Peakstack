@@ -3,21 +3,29 @@ import numpy as np
 
 class DispatchOptimizer:
     """
-    AI-Powered Battery Dispatch Optimizer (Real-time MILP engine).
-    Generates optimal charge/discharge schedules based on forecasts and tariff structures.
+    Enterprise-Grade Energy Operating System Dispatch Engine.
+    Supports: Multi-day horizon, Degradation modeling, Hybrid DG, and Dynamic IEX pricing.
     """
-    def __init__(self, load_forecast, solar_forecast, tariff_profile, battery_capacity_kwh, battery_power_kw, efficiency=0.9):
+    def __init__(self, load_forecast, solar_forecast, tariff_profile, battery_capacity_kwh, battery_power_kw, 
+                 efficiency=0.90, dg_cost=20.0, dg_running_profile=None, initial_soc_percent=50.0):
         self.load = load_forecast
         self.solar = solar_forecast
         self.tariff = tariff_profile
         self.capacity = battery_capacity_kwh
         self.power = battery_power_kw
         self.efficiency = efficiency
-        self.intervals = len(load_forecast) # Expected 96 for 24h 15-min intervals
+        self.dg_cost = dg_cost
+        self.dg_running = dg_running_profile if dg_running_profile else [False] * len(load_forecast)
+        self.initial_soc = (initial_soc_percent / 100.0) * battery_capacity_kwh
+        self.intervals = len(load_forecast)
         
     def solve(self):
-        # Create LP problem: Maximize Savings
-        prob = pulp.LpProblem("RealTime_Battery_Dispatch", pulp.LpMaximize)
+        """
+        Solves the MILP dispatch problem.
+        Objective: Maximize Savings - Degradation Cost
+        """
+        # Create LP problem
+        prob = pulp.LpProblem("MultiDay_Hybrid_Dispatch", pulp.LpMaximize)
         
         # Variables
         charge = pulp.LpVariable.dicts("charge", range(self.intervals), lowBound=0, upBound=self.power)
@@ -28,37 +36,35 @@ class DispatchOptimizer:
         soc_max = self.capacity * 0.90
         soc = pulp.LpVariable.dicts("soc", range(self.intervals + 1), lowBound=soc_min, upBound=soc_max)
         
-        # Initial SOC (assume 50% for day-ahead optimization, or pass it as param later)
-        prob += soc[0] == self.capacity * 0.5
+        # Initial SOC
+        prob += soc[0] == self.initial_soc
         
-        # Objective: Maximize arbitrage savings minus degradation
-        # Assuming intervals are 15-min (0.25 hr) for energy calculation
-        # savings = discharge_energy * tariff - charge_energy * tariff - throughput * cycle_cost
+        # Parameters
+        # degradation_factor = Cost per kWh of throughput (approx ₹0.80 based on lifecycle)
+        degradation_factor = 0.80 
+        
         savings_objective = 0
-        cycle_cost_per_kwh = 0.5
-        
         for t in range(self.intervals):
-            # Energy in kWh for this 15-min interval
             charge_kwh = charge[t] * 0.25
             discharge_kwh = discharge[t] * 0.25
             
-            # Add to objective (Arbitrage - Degradation)
-            savings_objective += (discharge_kwh * self.tariff[t]) - (charge_kwh * self.tariff[t]) - ((charge_kwh + discharge_kwh) * cycle_cost_per_kwh)
+            # Dynamic Tariff Integration (Grid vs DG vs IEX)
+            # Logic: If DG is running, alternative cost is DG. Else, use the provided tariff (which should include IEX)
+            effective_tariff = self.dg_cost if self.dg_running[t] else self.tariff[t]
+            
+            # Objective Function:
+            # 1. Arbitrage: (Discharge * Effective Tariff) - (Charge * Grid Tariff)
+            # 2. Degradation: (Charge + Discharge) * Degradation Factor
+            savings_objective += (discharge_kwh * effective_tariff) - (charge_kwh * self.tariff[t]) - ((charge_kwh + discharge_kwh) * degradation_factor)
             
             # Constraints
-            # 1. SOC transition
+            # 1. SOC transition with Efficiency
             prob += soc[t+1] == soc[t] + (charge_kwh * self.efficiency) - (discharge_kwh / self.efficiency)
             
-            # 2. Behind-The-Meter limit: Cannot discharge more than (load - solar) to avoid grid export
+            # 2. Behind-The-Meter constraint: Cannot discharge more than net load (no grid export allowed in C&I usually)
+            # We use "Safe Forecasts" here (passed into constructor)
             net_load = max(0, self.load[t] - self.solar[t])
             prob += discharge[t] <= net_load
-            
-            # 3. Cannot charge from grid at peak tariff if we only want solar charging, 
-            # but the objective function naturally handles this (it will charge when tariff is lowest).
-            
-            # 4. Prevent simultaneous charge and discharge
-            # In pure LP, efficiency < 1 prevents simultaneous charge/discharge automatically
-            # because cycling energy loses money.
             
         prob += savings_objective
         
@@ -70,34 +76,34 @@ class DispatchOptimizer:
             
         # Extract schedule
         schedule = []
+        total_discharge_kwh = 0.0
+        
         for t in range(self.intervals):
             c_val = pulp.value(charge[t])
             d_val = pulp.value(discharge[t])
+            s_val = pulp.value(soc[t+1])
             
-            # Format time
-            hour = (t // 4) % 24
-            minute = (t % 4) * 15
-            time_str = f"{hour:02d}:{minute:02d}"
+            # Time calculation for multi-day
+            day = t // 96
+            interval_in_day = t % 96
+            hour = (interval_in_day // 4) % 24
+            minute = (interval_in_day % 4) * 15
+            time_str = f"D{day+1} {hour:02d}:{minute:02d}"
             
-            action = "IDLE"
-            power = 0.0
+            total_discharge_kwh += d_val * 0.25
             
-            if c_val > 0.1:
-                action = "CHARGE"
-                power = c_val
-            elif d_val > 0.1:
-                action = "DISCHARGE"
-                power = d_val
-                
             schedule.append({
                 "time": time_str,
-                "action": action,
-                "power": float(power),
-                "soc_percent": float((pulp.value(soc[t+1]) / self.capacity) * 100)
+                "charge_kw": float(c_val),
+                "discharge_kw": float(d_val),
+                "soc_percent": float((s_val / self.capacity) * 100),
+                "tariff": float(self.tariff[t]),
+                "is_dg_offset": bool(self.dg_running[t] and d_val > 0.1)
             })
             
         return {
             "schedule": schedule,
             "total_savings": float(pulp.value(prob.objective)),
+            "total_discharge_kwh": total_discharge_kwh,
             "status": "Optimal"
         }

@@ -11,11 +11,31 @@ import uuid
 
 from app.schemas import AnalysisRequest, AnalysisResponse, ChartDataSchema, KPISchema, RealismSchema, InsightSchema
 from app.pipeline import PipelineOrchestrator
+from app.core.data_processor import DataProcessor
+from fastapi import File, UploadFile
+import os
 
 router = APIRouter(prefix="/api/v1", tags=["analyses"])
 logger = logging.getLogger(__name__)
 orchestrator = PipelineOrchestrator()
+data_processor = DataProcessor()
 
+
+@router.post("/upload-data")
+async def upload_data(file: UploadFile = File(...)):
+    """Upload CSV data for analysis"""
+    os.makedirs("data/uploads", exist_ok=True)
+    file_id = str(uuid.uuid4())
+    file_path = f"data/uploads/{file_id}.csv"
+    
+    with open(file_path, "wb") as f:
+        f.write(await file.read())
+        
+    try:
+        preview = await data_processor.process_csv(file_path)
+        return {"file_id": file_id, "preview": preview}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @router.post(
     "/analyze",
@@ -124,7 +144,16 @@ async def analyze(
             
             # Data quality
             data_quality_score=pipeline_context.data_quality_score,
-            data_quality_issues=pipeline_context.data_quality_issues
+            data_quality_issues=pipeline_context.data_quality_issues,
+            
+            # Self-healing logs
+            healing_logs=getattr(pipeline_context, 'healing_logs', []),
+            
+            # Advanced Optimization Outputs
+            recommended_sizing=pipeline_context.recommended_sizing,
+            dg_savings=pipeline_context.dg_savings_meta if hasattr(pipeline_context, 'dg_savings_meta') else None,
+            scenarios=pipeline_context.scenarios,
+            sensitivity=pipeline_context.sensitivity
         )
         
         logger.info(f"[API] Analysis {analysis_id} completed: recommendation={response.recommendation}")
@@ -191,45 +220,49 @@ def _calculate_peak_reduction_percent(peak_reduction_kw: float, battery_kwh: flo
     return (peak_reduction_kw / baseline_peak * 100) if baseline_peak > 0 else 0.0
 
 
-def _generate_daily_chart(load_hourly, solar_24h, dispatch) -> ChartDataSchema:
-    """Generate typical day chart data"""
+def _generate_daily_chart(load_profile, solar_profile, dispatch) -> ChartDataSchema:
+    """Generate typical day chart data with 96 intervals (15-min)"""
     
-    # Ensure we have 24 hours of data
-    load_24h = load_hourly[-24:] if len(load_hourly) >= 24 else (load_hourly + [0] * (24 - len(load_hourly)))
-    solar_24h = solar_24h[:24] if len(solar_24h) >= 24 else (solar_24h + [0] * (24 - len(solar_24h)))
+    # Ensure we have 96 intervals
+    load_96 = load_profile[-96:] if len(load_profile) >= 96 else (load_profile + [0] * (96 - len(load_profile)))
+    solar_96 = solar_profile[-96:] if len(solar_profile) >= 96 else (solar_profile + [0] * (96 - len(solar_profile)))
     
-    # Generate timestamps
-    timestamps = [f"{h:02d}:00" for h in range(24)]
+    # Generate timestamps (00:00, 00:15, ...)
+    timestamps = []
+    for h in range(24):
+        for m in [0, 15, 30, 45]:
+            timestamps.append(f"{h:02d}:{m:02d}")
     
-    # Generate dispatch data (charging/discharging)
-    battery_charge = dispatch.get('charge', [0] * 24)[:24]
-    battery_discharge = dispatch.get('discharge', [0] * 24)[:24]
+    # Generate dispatch data
+    battery_charge = dispatch.get('charge', [0] * 96)
+    battery_discharge = dispatch.get('discharge', [0] * 96)
     
-    # Calculate SOC (simple: starts at 50%)
-    soc = [50]
-    for i in range(24):
-        change = battery_discharge[i] - battery_charge[i]  # Discharge reduces, charge increases
-        soc.append(max(20, min(100, soc[-1] + change)))
-    soc = soc[1:]  # Remove first dummy value
+    # Requirement: Discharge should be negative for bars if frontend doesn't handle it
+    # But usually, it's better to provide raw values and let frontend decide.
+    # User said "Discharge (negative bars)", so I'll provide them as negative.
+    battery_discharge_neg = [-x for x in battery_discharge]
     
-    # Calculate grid import (load - solar - discharge + charge)
+    soc = dispatch.get('soc', [50] * 96)
+    
+    # Calculate grid import
     grid_import = []
     grid_import_no_bess = []
-    for i in range(24):
-        grid_no_bess = max(0, load_24h[i] - solar_24h[i])
-        grid_with_bess = max(0, load_24h[i] - solar_24h[i] + battery_charge[i] - battery_discharge[i])
+    for i in range(96):
+        grid_no_bess = max(0, load_96[i] - solar_96[i])
+        grid_with_bess = max(0, load_96[i] - solar_96[i] + battery_charge[i] - battery_discharge[i])
         grid_import_no_bess.append(grid_no_bess)
         grid_import.append(grid_with_bess)
     
     return ChartDataSchema(
         timestamps=timestamps,
-        load_kw=load_24h,
-        solar_generation_kw=solar_24h,
+        load_kw=load_96,
+        solar_generation_kw=solar_96,
         battery_charge_kw=battery_charge,
-        battery_discharge_kw=battery_discharge,
+        battery_discharge_kw=battery_discharge_neg,
         battery_soc_percent=soc,
         grid_import_kw=grid_import,
-        grid_import_without_bess_kw=grid_import_no_bess
+        grid_import_without_bess_kw=grid_import_no_bess,
+        dg_offset_kw=dispatch.get('dg_offset', [0] * 96)
     )
 
 

@@ -57,7 +57,7 @@ class DataIngestor:
                     raise ValueError(f"CSV must contain '{col}' column.")
 
         # 3. Resampling to 15-minute intervals (Standard EMS Resolution)
-        df = df.resample(self.target_freq).mean().fillna(method='ffill').fillna(0)
+        df = df.resample(self.target_freq).mean().ffill().fillna(0)
 
         # 4. Basic Outlier Detection (Z-Score)
         # Industrial load can have spikes, but we clip extreme errors (e.g., > 5 sigma)

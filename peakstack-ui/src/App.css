@@ -544,6 +544,88 @@ html.dark .summary-alert {
 .empty-state h3 { font-size: 18px; color: var(--text-main); }
 .empty-state p  { font-size: 14px; }
 
+/* =========================================================
+   Advanced Enterprise Components
+   ========================================================= */
+.sizing-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.sizing-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  text-align: center;
+  transition: transform 0.2s, border-color 0.2s;
+  box-shadow: var(--shadow-sm);
+}
+
+.sizing-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent);
+}
+
+.sizing-card.recommended {
+  border: 2px solid var(--accent);
+  background: rgba(16, 185, 129, 0.03);
+}
+
+.scenario-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 24px;
+  background: var(--bg-card);
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+}
+
+.scenario-table th, .scenario-table td {
+  padding: 16px 20px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+.scenario-table th {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  background: rgba(0,0,0,0.02);
+}
+
+.scenario-table tr:last-child td { border-bottom: none; }
+
+.sensitivity-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 24px;
+}
+
+.sensitivity-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 20px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.sensitivity-item .impact {
+  font-weight: 700;
+}
+
+.sensitivity-item .impact.positive { color: #10b981; }
+.sensitivity-item .impact.negative { color: #ef4444; }
+
 @keyframes spin {
   to { transform: rotate(360deg); }
 }

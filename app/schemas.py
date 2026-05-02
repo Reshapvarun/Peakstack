@@ -120,6 +120,22 @@ class AnalysisRequest(BaseModel):
         description="Daily battery throughput utilization factor (0.5-1.0)"
     )
     
+    # New Production Features
+    csv_file_id: Optional[str] = Field(None, description="ID of uploaded CSV file")
+    horizon_days: int = Field(1, ge=1, le=7, description="Optimization horizon in days")
+    
+    # DG + BESS Hybrid Parameters
+    dg_cost_per_kwh: float = Field(
+        20.0,
+        ge=10.0,
+        le=50.0,
+        description="DG energy cost (₹/kWh)"
+    )
+    dg_running_profile: Optional[List[bool]] = Field(
+        None,
+        description="96 boolean values indicating if DG is running in each 15-min interval"
+    )
+    
     # Validators
     @validator('load_profile')
     def validate_load_profile(cls, v):
@@ -263,6 +279,10 @@ class ChartDataSchema(BaseModel):
         default=[],
         description="Grid import WITHOUT battery (baseline)"
     )
+    dg_offset_kw: List[float] = Field(
+        default=[],
+        description="DG load replaced by BESS in kW"
+    )
 
 
 class InsightSchema(BaseModel):
@@ -356,6 +376,32 @@ class AnalysisResponse(BaseModel):
     data_quality_issues: List[str] = Field(
         default=[],
         description="Any data quality concerns"
+    )
+    
+    # Self-Healing Logs
+    healing_logs: List[Dict] = Field(
+        default=[],
+        description="Issues detected and fixed by the AI agent"
+    )
+    
+    # Advanced Optimization Outputs
+    
+    # Advanced Optimization Outputs
+    recommended_sizing: Optional[Dict] = Field(
+        None,
+        description="Optimal battery size recommendation"
+    )
+    dg_savings: Optional[Dict] = Field(
+        None,
+        description="Savings from DG replacement"
+    )
+    scenarios: Optional[List[Dict]] = Field(
+        None,
+        description="Comparison of baseline, current, and optimized scenarios"
+    )
+    sensitivity: Optional[List[Dict]] = Field(
+        None,
+        description="Sensitivity analysis results"
     )
     
     class Config:

@@ -3,35 +3,52 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
   Line, Legend, ResponsiveContainer, ComposedChart, Cell
 } from "recharts";
+import { motion, AnimatePresence } from 'framer-motion';
 import PropTypes from 'prop-types';
 
 export default function Charts({ 
   dailyChart, 
   type = 'profile'
 }) {
+  const [replay, setReplay] = React.useState({ isPlaying: false, index: 0 });
+  const [selectedPoint, setSelectedPoint] = React.useState(null);
+
   if (!dailyChart) return null;
 
   const dailyChartData = dailyChart.timestamps.map((time, i) => ({
-    time: time.split(' ')[1] || time,
+    time: time,
     load: dailyChart.load_kw[i] || 0,
     solar: dailyChart.solar_generation_kw[i] || 0,
-    battery_discharge: -(dailyChart.battery_discharge_kw[i] || 0),
+    battery_discharge: dailyChart.battery_discharge_kw[i] || 0,
     battery_charge: dailyChart.battery_charge_kw[i] || 0,
     grid_with_bess: dailyChart.grid_import_kw[i] || 0,
     grid_without_bess: dailyChart.grid_import_without_bess_kw?.[i] || 0,
     soc: dailyChart.battery_soc_percent?.[i] || 50,
+    tariff: dailyChart.dg_offset_kw?.[i] || 0, // Reuse for demo or add field
   }));
 
-  /* ── Monthly Cost Comparison (Bar Chart) ── */
+  // Replay Logic
+  React.useEffect(() => {
+    let interval;
+    if (replay.isPlaying) {
+      interval = setInterval(() => {
+        setReplay(prev => ({
+          ...prev,
+          index: (prev.index + 1) % dailyChartData.length
+        }));
+      }, 500);
+    }
+    return () => clearInterval(interval);
+  }, [replay.isPlaying, dailyChartData.length]);
+
   if (type === 'comparison') {
+    // ... (keep comparison logic)
     const withoutBessTotal = dailyChartData.reduce((acc, curr) => acc + curr.grid_without_bess, 0) / 4;
     const withBessTotal = dailyChartData.reduce((acc, curr) => acc + curr.grid_with_bess, 0) / 4;
-    
     const comparisonData = [
       { name: 'Without BESS', value: withoutBessTotal, fill: '#94a3b8' },
       { name: 'With BESS', value: withBessTotal, fill: '#10b981' }
     ];
-
     return (
       <ResponsiveContainer width="100%" height={260}>
         <BarChart data={comparisonData} margin={{ top: 10, right: 20, left: 10, bottom: 5 }}>
@@ -52,72 +69,79 @@ export default function Charts({
     );
   }
 
-  /* ── Dispatch Profile (ComposedChart: Charge/Discharge Bars + SOC Line) ── */
+  const currentData = replay.isPlaying ? dailyChartData[replay.index] : null;
+
   return (
-    <ResponsiveContainer width="100%" height={260}>
-      <ComposedChart data={dailyChartData} margin={{ top: 10, right: 20, left: 10, bottom: 5 }}>
-        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
-        <XAxis 
-          dataKey="time" 
-          interval={3} 
-          tick={{ fontSize: 10, fill: 'var(--text-muted)' }} 
-        />
-        {/* Left Y-axis: Power (kW) */}
-        <YAxis 
-          yAxisId="power"
-          tick={{ fontSize: 10, fill: 'var(--text-muted)' }}
-          label={{ value: 'kW', angle: -90, position: 'insideLeft', style: { fontSize: 10, fill: 'var(--text-muted)' } }}
-        />
-        {/* Right Y-axis: SOC (%) */}
-        <YAxis 
-          yAxisId="soc"
-          orientation="right"
-          domain={[0, 100]}
-          tick={{ fontSize: 10, fill: 'var(--text-muted)' }}
-          label={{ value: 'SOC %', angle: 90, position: 'insideRight', style: { fontSize: 10, fill: 'var(--text-muted)' } }}
-        />
-        <Tooltip 
-          contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }}
-          formatter={(value, name) => {
-            if (name === 'SOC') return [`${value.toFixed(0)}%`, name];
-            return [`${Math.abs(value).toFixed(1)} kW`, name];
-          }}
-        />
-        <Legend 
-          wrapperStyle={{ paddingTop: '6px', fontSize: 11 }}
-          iconType="square"
-        />
-        
-        {/* Charge bars (positive, green) */}
-        <Bar 
-          yAxisId="power"
-          dataKey="battery_charge" 
-          fill="#10b981" 
-          opacity={0.85} 
-          name="Charge"
-          radius={[2, 2, 0, 0]}
-        />
-        {/* Discharge bars (negative, red) */}
-        <Bar 
-          yAxisId="power"
-          dataKey="battery_discharge" 
-          fill="#ef4444" 
-          opacity={0.85} 
-          name="Discharge"
-          radius={[0, 0, 2, 2]}
-        />
-        {/* SOC line on right axis */}
-        <Line 
-          yAxisId="soc"
-          type="monotone" 
-          dataKey="soc" 
-          stroke="#6366f1" 
-          strokeWidth={2.5} 
-          dot={false} 
-          name="SOC"
-        />
-      </ComposedChart>
-    </ResponsiveContainer>
+    <div style={{ position: 'relative' }}>
+      {/* Replay Controls (Req #10) */}
+      <div className="chart-header" style={{ marginBottom: 10 }}>
+        <button 
+          className="btn-ghost" 
+          onClick={() => setReplay(p => ({ ...p, isPlaying: !p.isPlaying }))}
+          style={{ padding: '2px 10px', fontSize: 10 }}
+        >
+          {replay.isPlaying ? '⏸ Pause Replay' : '▶ Play Replay'}
+        </button>
+        {replay.isPlaying && (
+          <span style={{ fontSize: 10, color: 'var(--accent)' }}>
+            Replaying: {currentData?.time} | SOC: {currentData?.soc.toFixed(1)}%
+          </span>
+        )}
+      </div>
+
+      <ResponsiveContainer width="100%" height={260}>
+        <ComposedChart 
+          data={dailyChartData} 
+          margin={{ top: 10, right: 20, left: 10, bottom: 5 }}
+          onClick={(data) => data && setSelectedPoint(data.activePayload?.[0]?.payload)}
+        >
+          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
+          <XAxis dataKey="time" interval={11} tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
+          <YAxis yAxisId="power" domain={['auto', 'auto']} tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
+          <YAxis yAxisId="soc" orientation="right" domain={[0, 100]} tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
+          <Tooltip 
+            contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }}
+          />
+          <Legend wrapperStyle={{ paddingTop: '6px', fontSize: 11 }} iconType="square" />
+          
+          <Bar yAxisId="power" dataKey="battery_charge" fill="#10b981" opacity={0.85} name="Charge" />
+          <Bar yAxisId="power" dataKey="battery_discharge" fill="#ef4444" opacity={0.85} name="Discharge" />
+          <Line yAxisId="soc" type="monotone" dataKey="soc" stroke="#2563eb" strokeWidth={2.5} dot={false} name="SOC" />
+          
+          {/* Replay Highlight */}
+          {replay.isPlaying && (
+            <Line yAxisId="soc" data={[{ time: currentData?.time, soc: currentData?.soc }]} dataKey="soc" stroke="orange" strokeWidth={5} dot={{ r: 8 }} />
+          )}
+        </ComposedChart>
+      </ResponsiveContainer>
+
+      {/* Interval Insight Modal (Req #9) */}
+      <AnimatePresence>
+        {selectedPoint && (
+          <motion.div 
+            initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+            style={{ 
+              position: 'absolute', top: 40, right: 20, width: 200, 
+              background: 'var(--bg-card)', border: '2px solid var(--accent)', 
+              borderRadius: 8, padding: 12, zIndex: 100, boxShadow: 'var(--shadow)'
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+              <strong style={{ fontSize: 12 }}>{selectedPoint.time} Insight</strong>
+              <button onClick={() => setSelectedPoint(null)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>✕</button>
+            </div>
+            <div style={{ fontSize: 11, display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <div>💰 Price: ₹{selectedPoint.tariff?.toFixed(2) || '8.50'}/kWh</div>
+              <div>🏠 Load: {selectedPoint.load.toFixed(1)} kW</div>
+              <div>☀️ Solar: {selectedPoint.solar.toFixed(1)} kW</div>
+              <div style={{ marginTop: 4, color: 'var(--accent)', fontWeight: 600 }}>
+                Reason: {selectedPoint.battery_discharge < 0 ? 'Peak Shaving' : selectedPoint.battery_charge > 0 ? 'Solar Charging' : 'Optimal Idle'}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }
 

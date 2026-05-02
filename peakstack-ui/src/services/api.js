@@ -32,6 +32,9 @@ export async function analyzeEnergy(params) {
     solar_cost_per_kwh: parseFloat(params.solar_cost_per_kwh),
     utilization_factor: parseFloat(params.utilization_factor),
     industry: params.industry,
+    dg_cost_per_kwh: parseFloat(params.dg_cost_per_kwh || 20.0),
+    horizon_days: parseInt(params.horizon_days || 1),
+    csv_file_id: params.csv_file_id || null,
   };
 
   const response = await fetch(`${API_BASE_URL}/analyze`, {
