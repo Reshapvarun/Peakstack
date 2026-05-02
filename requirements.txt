@@ -8,3 +8,5 @@ fastapi
 uvicorn
 matplotlib
 plotly
+
+shap

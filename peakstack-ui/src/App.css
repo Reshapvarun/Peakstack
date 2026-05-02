@@ -1,133 +1,558 @@
-body, html {
-  margin: 0;
-  font-family: "Inter", sans-serif;
-  background: #f5f7fb;
+/* =========================================================
+   Peakstack BESS Dashboard — Production CSS
+   Target: 1920 × 1080 (16:9 landscape)
+   ========================================================= */
+
+/* ---------- Design Tokens ---------- */
+:root {
+  --p-green-50:  #ecfdf5;
+  --p-green-100: #d1fae5;
+  --p-green-600: #059669;
+  --p-green-700: #047857;
+  --p-green-800: #065f46;
+  --p-green-900: #064e3b;
+
+  --p-slate-100: #f1f5f9;
+  --p-slate-200: #e2e8f0;
+  --p-slate-300: #cbd5e1;
+  --p-slate-600: #475569;
+  --p-slate-700: #334155;
+  --p-slate-800: #1e293b;
+  --p-slate-900: #0f172a;
+
+  /* Light theme (default) */
+  --bg-main:    var(--p-slate-100);
+  --bg-card:    #ffffff;
+  --bg-sidebar: var(--p-slate-900);
+  --text-main:  var(--p-slate-800);
+  --text-muted: var(--p-slate-600);
+  --border:     var(--p-slate-200);
+  --accent:     var(--p-green-600);
+  --accent-hov: var(--p-green-700);
+  --hero-bg:    var(--p-green-900);
+
+  --shadow-sm: 0 1px 3px rgb(0 0 0 / .08), 0 1px 2px rgb(0 0 0 / .06);
+  --shadow:    0 4px 6px -1px rgb(0 0 0 / .1), 0 2px 4px -2px rgb(0 0 0 / .1);
+  --font:      'Inter', system-ui, -apple-system, sans-serif;
 }
 
-/* DARK MODE */
-body.dark {
-  background: #0f172a;
-  color: white;
+/* Dark theme — applied on <html class="dark"> */
+html.dark {
+  --bg-main:    #0b1120;
+  --bg-card:    #1e293b;
+  --bg-sidebar: #020617;
+  --text-main:  #f1f5f9;
+  --text-muted: #94a3b8;
+  --border:     #334155;
+  --accent:     #10b981;
+  --accent-hov: #34d399;
+  --hero-bg:    #064e3b;
 }
 
-body.dark .card,
-body.dark .chart-box {
-  background: #1e293b;
-  color: white;
+/* ---------- Reset ---------- */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;        /* NO global scroll — each zone scrolls independently */
 }
 
-/* LAYOUT */
-.layout {
+html {
+  font-family: var(--font);
+  background: var(--bg-main);
+  color: var(--text-main);
+  transition: background .3s, color .3s;
+}
+
+/* ---------- Root Shell ---------- */
+.app-container {
   display: flex;
+  width: 100%;
   height: 100vh;
+  overflow: hidden;
+  background: var(--bg-main);
 }
 
-/* SIDEBAR */
+/* ---------- Sidebar — fixed 320 px, never shrinks ---------- */
 .sidebar {
-  width: 260px;
-  background: #0f172a;
-  color: white;
+  width: 320px;
+  min-width: 320px;
+  flex-shrink: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-sidebar);
+  color: #fff;
+  border-right: 1px solid rgba(255,255,255,.06);
+  overflow-y: auto;
+  overflow-x: hidden;
   padding: 20px;
 }
 
-.logo {
-  width: 120px;
-  margin-bottom: 20px;
-}
-
-.run-btn {
-  background: #22c55e;
-  border: none;
-  padding: 12px;
-  color: white;
-  width: 100%;
-  border-radius: 8px;
-  margin-top: 20px;
-}
-
-.toggle {
-  margin-top: 10px;
-  width: 100%;
-}
-
-/* MAIN */
-.main {
+/* ---------- Main area — takes remaining width ---------- */
+.main-content {
   flex: 1;
-  padding: 30px;
-  max-width: 1400px;
-  margin: auto;
+  min-width: 0;            /* critical: prevents flex child overflow */
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: var(--bg-main);
 }
 
-/* HEADER */
-.top-bar {
+/* ---------- Inner centering wrapper ---------- */
+.content-inner {
+  max-width: 1600px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 16px 28px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* =========================================================
+   Sidebar internals
+   ========================================================= */
+.logo-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-bottom: 20px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid rgba(255,255,255,.07);
+}
+
+.logo-img {
+  width: 160px;
+  height: auto;
+  object-fit: contain;
+  filter: invert(1);
+  mix-blend-mode: screen;
+}
+
+.sidebar-group { margin-bottom: 20px; }
+
+.sidebar h3 {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: #475569;
+  margin-bottom: 10px;
+}
+
+.sidebar-label {
+  display: block;
+  font-size: 12px;
+  color: #cbd5e1;
+  margin-bottom: 6px;
+}
+
+/* Selects inside sidebar */
+.sidebar select {
+  width: 100%;
+  padding: 8px 10px;
+  background: rgba(255,255,255,.05);
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 6px;
+  color: #fff;
+  font-size: 13px;
+  margin-bottom: 10px;
+  cursor: pointer;
+}
+
+.quick-scenarios { display: grid; gap: 6px; }
+
+.scenario-btn {
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(255,255,255,.09);
+  color: #e2e8f0;
+  padding: 9px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+  font-size: 12px;
+  transition: background .15s;
+  width: 100%;
+}
+.scenario-btn:hover { background: rgba(255,255,255,.1); }
+
+/* Sliders */
+.range-group { margin-bottom: 14px; }
+
+.range-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 4px;
+}
+
+.range-val {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+input[type="range"] {
+  width: 100%;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+/* Analyze button — pinned to bottom */
+.btn-analyze {
+  width: 100%;
+  margin-top: auto;
+  padding: 13px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background .2s;
+  letter-spacing: .02em;
+}
+.btn-analyze:hover:not(:disabled) { background: var(--accent-hov); }
+.btn-analyze:disabled { opacity: .55; cursor: not-allowed; }
+
+/* =========================================================
+   Header
+   ========================================================= */
+.header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  padding: 12px 0 16px;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--bg-main);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 20px;
 }
 
-.subtitle {
-  color: gray;
-}
+.stepper { display: flex; align-items: center; gap: 14px; }
 
-/* SUMMARY */
-.summary {
-  background: #d1fae5;
-  padding: 15px;
-  border-radius: 10px;
-  margin: 20px 0;
-}
-
-/* RECOMMEND */
-.recommend {
-  background: linear-gradient(90deg, #15803d, #22c55e);
-  color: white;
-  padding: 20px;
-  border-radius: 12px;
-}
-
-.rec-grid {
+.step {
   display: flex;
-  justify-content: space-between;
-  margin-top: 10px;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
 }
+.step.active { color: var(--text-main); }
 
-.badge {
-  background: white;
-  color: green;
-  padding: 5px 10px;
+.step-num {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+}
+.step.active .step-num { background: var(--accent); color: #fff; }
+
+.header-actions { display: flex; gap: 10px; }
+
+.btn-ghost {
+  background: transparent;
+  border: 1px solid var(--border);
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--text-main);
+  font-size: 12px;
+  font-weight: 600;
+  transition: border-color .15s, background .15s;
+}
+.btn-ghost:hover { background: var(--border); }
+.btn-ghost:disabled { opacity: .4; cursor: not-allowed; }
+
+/* =========================================================
+   Summary Alert
+   ========================================================= */
+.summary-alert {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 18px;
   border-radius: 8px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  font-weight: 500;
+  background: var(--p-green-50);
+  border: 1px solid var(--p-green-100);
+  color: var(--p-green-900);
+}
+html.dark .summary-alert {
+  background: rgba(16,185,129,.1);
+  border-color: rgba(16,185,129,.2);
+  color: #6ee7b7;
 }
 
-/* CARDS */
-.cards {
+/* =========================================================
+   Recommendation Hero
+   ========================================================= */
+.rec-hero {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  padding: 22px 28px;
+  border-radius: 12px;
+  margin-bottom: 16px;
+  background: var(--hero-bg);
+  color: #fff;
+  box-shadow: var(--shadow);
+}
+
+.rec-icon { font-size: 44px; flex-shrink: 0; }
+
+.rec-details { flex: 1; min-width: 0; }
+
+.rec-details h4 {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  opacity: .7;
+  margin-bottom: 4px;
+}
+
+.rec-details h2 {
+  font-size: 28px;
+  font-weight: 800;
+  margin-bottom: 4px;
+  line-height: 1.15;
+}
+
+.rec-details p {
+  font-size: 13px;
+  opacity: .8;
+  line-height: 1.5;
+}
+
+.rec-metrics {
+  display: flex;
+  gap: 28px;
+  flex-shrink: 0;
+}
+
+.rec-metric-item { text-align: center; }
+
+.rec-metric-item .lbl {
+  display: block;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  opacity: .6;
+  margin-bottom: 4px;
+}
+
+.rec-metric-item .val {
+  display: block;
+  font-size: 20px;
+  font-weight: 800;
+}
+
+/* =========================================================
+   KPI Grid — strict 4-column row, no wrapping
+   ========================================================= */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-bottom: 16px;
+  min-width: 0;           /* prevent grid from overflowing flex parent */
+}
+
+.kpi-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 18px 20px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  height: 110px;
+}
+
+.kpi-card h4 {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.kpi-card .val {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 3px;
+}
+
+.kpi-card .change {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+/* =========================================================
+   Dispatch Panel — 3-column real-time status
+   ========================================================= */
+.dispatch-panel {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 20px;
-  margin-top: 20px;
+  gap: 14px;
+  margin-bottom: 16px;
+  min-width: 0;
 }
 
-.card {
-  background: white;
-  padding: 20px;
-  border-radius: 12px;
-  text-align: center;
+.dispatch-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px 20px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
 }
 
-/* CHARTS */
-.charts {
+.dispatch-card .dispatch-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.dispatch-card .dispatch-icon.charge {
+  background: rgba(16,185,129,.12);
+}
+.dispatch-card .dispatch-icon.discharge {
+  background: rgba(239,68,68,.12);
+}
+.dispatch-card .dispatch-icon.soc {
+  background: rgba(99,102,241,.12);
+}
+
+.dispatch-card .dispatch-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.dispatch-card .dispatch-info .dispatch-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--text-muted);
+  margin-bottom: 2px;
+}
+
+.dispatch-card .dispatch-info .dispatch-value {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--text-main);
+  white-space: nowrap;
+}
+
+.dispatch-card .dispatch-info .dispatch-sub {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-top: 1px;
+}
+
+/* =========================================================
+   Charts Grid — 2 equal columns, fixed height
+   ========================================================= */
+.charts-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 20px;
-  margin-top: 20px;
+  gap: 16px;
+  margin-bottom: 16px;
+  min-width: 0;
 }
 
-.chart-box {
-  background: white;
-  padding: 20px;
+.chart-container {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
   border-radius: 12px;
+  padding: 18px 20px;
+  box-shadow: var(--shadow-sm);
+  height: 320px;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
 
-/* INSIGHTS */
-.insights {
-  margin-top: 20px;
+.chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  flex-shrink: 0;
+}
+
+.chart-header h3 {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.chart-header span {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* =========================================================
+   Empty / Loading States
+   ========================================================= */
+.empty-state,
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  color: var(--text-muted);
+  gap: 16px;
+  text-align: center;
+  padding: 60px 20px;
+}
+
+.empty-state h3 { font-size: 18px; color: var(--text-main); }
+.empty-state p  { font-size: 14px; }
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin .9s linear infinite;
 }

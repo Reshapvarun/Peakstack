@@ -6,21 +6,37 @@ import numpy as np
 from datetime import datetime
 import os
 from typing import Dict, Any
+import logging
 
-from app.api.schemas import AnalysisRequest, AnalysisResponse, UploadResponse
-from app.api.dependencies import get_forecaster
-from app.core.data_ingestion import DataIngestor
-from app.core.optimizer import EnergyOptimizer
-from app.core.policy_manager import PolicyManager
-from app.core.finance import FinancialEngine, FinanceConfig
-from app.core.battery import BatteryConfig
-from app.core.decision_engine import DecisionEngine
-from app.ml.xai import ExplainableAI
-from app.core.billing.engine import TariffEngine
-from app.core.billing.refresher import TariffRefreshManager
-from app.core.report_generator import ReportGenerator
+# New production-ready imports
+from app.api.routes import router as analysis_router
+from app.schemas import AnalysisRequest as NewAnalysisRequest, AnalysisResponse as NewAnalysisResponse
 
-app = FastAPI(title="AI-Powered BESS Investment Advisor API")
+# Legacy imports (keep for backward compatibility)
+try:
+    from app.api.schemas import AnalysisRequest, AnalysisResponse, UploadResponse
+    from app.api.dependencies import get_forecaster
+    from app.core.data_ingestion import DataIngestor
+    from app.core.optimizer import EnergyOptimizer
+    from app.core.policy_manager import PolicyManager
+    from app.core.finance import FinancialEngine, FinanceConfig
+    from app.core.battery import BatteryConfig
+    from app.core.decision_engine import DecisionEngine
+    from app.ml.xai import ExplainableAI
+    from app.core.billing.engine import TariffEngine
+    from app.core.billing.refresher import TariffRefreshManager
+    from app.core.report_generator import ReportGenerator
+except ImportError as e:
+    print(f"Warning: Could not import legacy modules: {e}")
+
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+app = FastAPI(title="AI-Powered BESS Investment Advisor API", version="2.0.0-production")
+
+# Include new production routes
+app.include_router(analysis_router)
 
 # Enable CORS for Streamlit
 app.add_middleware(
