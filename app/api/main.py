@@ -76,10 +76,19 @@ def health_check():
 
 # --- SINGLE DOMAIN SERVING ---
 
-# Serve Frontend Static Files
-dist_path = "peakstack-ui/dist"
+# Detect Desktop Mode for dynamic paths
+is_desktop = os.environ.get("PEAKSTACK_MODE") == "desktop"
+base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+if is_desktop:
+    # In bundled Electron, paths are relative to the executable/asar
+    dist_path = os.path.join(base_dir, "peakstack-ui", "dist")
+    logger.info(f"Desktop Mode Active. Serving UI from: {dist_path}")
+else:
+    dist_path = "peakstack-ui/dist"
+
 if os.path.exists(dist_path):
-    app.mount("/assets", StaticFiles(directory=f"{dist_path}/assets"), name="assets")
+    app.mount("/assets", StaticFiles(directory=os.path.join(dist_path, "assets")), name="assets")
 
     @app.get("/{full_path:path}")
     async def serve_frontend(full_path: str):

@@ -11,7 +11,8 @@ import uuid
 
 from app.schemas import (
     AnalysisRequest, AnalysisResponse, UserCreate, UserResponse, Token,
-    ChartDataSchema, KPISchema, RealismSchema, InsightSchema
+    ChartDataSchema, KPISchema, RealismSchema, InsightSchema,
+    ControlRequestSchema, PortfolioSummarySchema, FacilitySummarySchema
 )
 from app.pipeline import PipelineOrchestrator
 from app.core.data_processor import DataProcessor
@@ -472,7 +473,51 @@ def _build_analysis_response(job_id: int, request: AnalysisRequest, pipeline_con
         recommended_sizing=pipeline_context.recommended_sizing,
         dg_savings=pipeline_context.dg_savings_meta if hasattr(pipeline_context, 'dg_savings_meta') else None,
         scenarios=pipeline_context.scenarios,
-        sensitivity=pipeline_context.sensitivity
+        sensitivity=pipeline_context.sensitivity,
+        chemistry=request.chemistry,
+        esg=pipeline_context.esg_metrics,
+        pricing_recommendation=pipeline_context.pricing_recommendation,
+        unit_economics=pipeline_context.unit_economics,
+        savings_breakdown=pipeline_context.savings_breakdown,
+        dg_intelligence=pipeline_context.dg_intelligence,
+        battery_health=pipeline_context.battery_health,
+        system_status=pipeline_context.system_status
+    )
+
+# ================= CONTROL & PORTFOLIO APIs (v4) =================
+
+@router.post("/control/{device_type}", tags=["Control"])
+async def send_control_signal(device_type: str, signal: ControlRequestSchema, user: User = Depends(get_current_user_from_cookie)):
+    """
+    Execute real-time control logic for BESS, DG, or Grid.
+    In production, this triggers hardware PLC/SCADA commands.
+    """
+    logger.info(f"[Control] Signal sent to {device_type} at facility {signal.facility_id}: {signal.action}={signal.value}")
+    # Simulate execution delay
+    await asyncio.sleep(0.5)
+    return {"status": "executed", "signal_id": str(uuid.uuid4()), "executed_at": datetime.utcnow()}
+
+@router.get("/portfolio", response_model=PortfolioSummarySchema, tags=["Portfolio"])
+async def get_portfolio_summary(user: User = Depends(get_current_user_from_cookie), db: Session = Depends(get_db)):
+    """
+    Get aggregated energy metrics across all facilities in the user's portfolio.
+    """
+    # Mock portfolio data for v4
+    facilities = [
+        FacilitySummarySchema(facility_id="F-101", name="Pune Factory", state="Maharashtra", battery_kwh=500.0, monthly_savings_inr=150000.0, status="Online"),
+        FacilitySummarySchema(facility_id="F-202", name="Chennai Plant", state="Tamil Nadu", battery_kwh=800.0, monthly_savings_inr=240000.0, status="Optimizing"),
+        FacilitySummarySchema(facility_id="F-303", name="Bangalore DC", state="Karnataka", battery_kwh=1200.0, monthly_savings_inr=420000.0, status="Online"),
+    ]
+    
+    total_savings = sum(f.monthly_savings_inr for f in facilities)
+    total_capacity = sum(f.battery_kwh for f in facilities)
+    
+    return PortfolioSummarySchema(
+        total_facilities=len(facilities),
+        total_battery_capacity_kwh=total_capacity,
+        total_monthly_savings_inr=total_savings,
+        portfolio_roi_percent=24.5,
+        facilities=facilities
     )
 
 async def _store_analysis_result(analysis_id: str, user_id: int, request: AnalysisRequest, response: AnalysisResponse):

@@ -32,7 +32,7 @@ export default function Sidebar({ inputs, updateInput, loading, uploading, setUp
       {/* Logo */}
       <div className="logo-section">
         <img src={logo} className="logo-img" alt="Peakstack" />
-        <div style={{ fontSize: 10, opacity: 0.5, marginTop: 4 }}>v2.1 (Modular Mode)</div>
+        <div style={{ fontSize: 10, opacity: 0.5, marginTop: 4 }}>v3.0 (Enterprise Energy OS)</div>
       </div>
 
       {/* ── Mode Indicator ── */}
@@ -125,6 +125,16 @@ export default function Sidebar({ inputs, updateInput, loading, uploading, setUp
           <option value="commercial">Commercial (1.3× peak)</option>
           <option value="hospitality">Hospitality (1.3× peak)</option>
           <option value="other">Other (1.3× peak)</option>
+        </select>
+
+        <label className="sidebar-label">Battery Chemistry (v3)</label>
+        <select
+          value={inputs.chemistry || 'lfp'}
+          onChange={e => updateInput('chemistry', e.target.value)}
+          disabled={loading}
+        >
+          <option value="lfp">LFP (Li-Fe-PO4) - Stable & Proven</option>
+          <option value="na_ion">Na-ion (Sodium-Ion) - Cost Efficient</option>
         </select>
       </div>
 

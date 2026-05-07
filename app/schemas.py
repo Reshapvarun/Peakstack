@@ -33,10 +33,11 @@ class StateEnum(str, Enum):
     MAHARASHTRA = "maharashtra"
     KARNATAKA = "karnataka"
     TAMIL_NADU = "tamil_nadu"
-    DELHI = "delhi"
-    RAJASTHAN = "rajasthan"
-    ANDHRA_PRADESH = "andhra_pradesh"
     GUJARAT = "gujarat"
+    TELANGANA = "telangana"
+    RAJASTHAN = "rajasthan"
+    UTTAR_PRADESH = "uttar_pradesh"
+    DELHI = "delhi"
 
 
 class IndustryEnum(str, Enum):
@@ -44,6 +45,11 @@ class IndustryEnum(str, Enum):
     COMMERCIAL = "commercial"
     HOSPITALITY = "hospitality"
     OTHER = "other"
+
+
+class ChemistryEnum(str, Enum):
+    LFP = "lfp"
+    NA_ION = "na_ion"
 
 
 # ============= REQUEST SCHEMA (#3) =============
@@ -164,6 +170,9 @@ class AnalysisRequest(BaseModel):
         None,
         description="96 boolean values indicating if DG is running in each 15-min interval"
     )
+
+    # Battery Chemistry (v3)
+    chemistry: ChemistryEnum = Field(ChemistryEnum.LFP, description="Battery chemistry (LFP or NA_ION)")
     
     # Validators
     @validator('load_profile')
@@ -195,6 +204,84 @@ class AnalysisRequest(BaseModel):
 
 
 # ============= RESPONSE SCHEMAS (#4) =============
+
+class ESGSchema(BaseModel):
+    """ESG metrics for reporting"""
+    co2_offset_kg: float
+    diesel_saved_litres: float
+    renewable_fraction_percent: float
+    trees_equivalent: float
+
+class PricingRecommendationSchema(BaseModel):
+    """Value-based pricing recommendation"""
+    monthly_subscription_inr: float
+    savings_share_percent: float
+    payback_verified: bool
+    roi_multiple: float
+    net_monthly_savings_after_fee_inr: float # New field for validation
+
+class UnitEconomicsSchema(BaseModel):
+    """Internal unit economics for SaaS dashboard"""
+    arpu_inr: float
+    cac_inr: float
+    ltv_inr: float
+    compute_cost_per_run: float
+    margin_percent: float
+
+class SavingsBreakdownSchema(BaseModel):
+    """Decomposed savings sources"""
+    peak_shaving_inr: float
+    dg_savings_inr: float
+    arbitrage_inr: float
+    solar_utilization_inr: float
+
+class DGIntelligenceSchema(BaseModel):
+    """Detailed DG performance metrics"""
+    runtime_hrs: float
+    energy_kwh: float
+    replaced_percent: float
+    savings_inr: float
+    diesel_saved_litres: float
+
+class BatteryHealthSchema(BaseModel):
+    """BESS longevity and health metrics"""
+    cycles_per_day: float
+    degradation_cost_inr: float
+    estimated_life_years: float
+    state_of_health_percent: float
+
+class SystemStatusSchema(BaseModel):
+    """Real-time system state"""
+    solver_status: str
+    solve_time_sec: float
+    forecast_confidence: float
+    mode: str
+    data_source: str
+
+class FacilitySummarySchema(BaseModel):
+    """Brief summary of a facility in a portfolio"""
+    facility_id: str
+    name: str
+    state: str
+    battery_kwh: float
+    monthly_savings_inr: float
+    status: str # "Online", "Optimizing", "Offline"
+
+class PortfolioSummarySchema(BaseModel):
+    """Aggregated portfolio metrics"""
+    total_facilities: int
+    total_battery_capacity_kwh: float
+    total_monthly_savings_inr: float
+    portfolio_roi_percent: float
+    facilities: List[FacilitySummarySchema]
+
+class ControlRequestSchema(BaseModel):
+    """Payload for real-time control signals"""
+    facility_id: str
+    device_type: str # "bess", "dg", "grid"
+    action: str # "charge", "discharge", "start", "stop", "import", "export"
+    value: float # kW or duration
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
 
 class KPISchema(BaseModel):
     """Key Performance Indicators"""
@@ -432,6 +519,17 @@ class AnalysisResponse(BaseModel):
         None,
         description="Sensitivity analysis results"
     )
+
+    # v3 Additions
+    esg: Optional[ESGSchema] = None
+    pricing_recommendation: Optional[PricingRecommendationSchema] = None
+    unit_economics: Optional[UnitEconomicsSchema] = None
+
+    # EMS Advanced Panels
+    savings_breakdown: Optional[SavingsBreakdownSchema] = None
+    dg_intelligence: Optional[DGIntelligenceSchema] = None
+    battery_health: Optional[BatteryHealthSchema] = None
+    system_status: Optional[SystemStatusSchema] = None
     
     class Config:
         json_schema_extra = {

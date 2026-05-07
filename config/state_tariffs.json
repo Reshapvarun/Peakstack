@@ -1,0 +1,44 @@
+{
+  "tamil_nadu": {
+    "state_name": "Tamil Nadu",
+    "utility": "TANGEDCO",
+    "category": "HT-I Industrial",
+    "energy_charge_peak_inr_per_kwh": 9.00,
+    "energy_charge_offpeak_inr_per_kwh": 7.10,
+    "energy_charge_normal_inr_per_kwh": 7.50,
+    "demand_charge_inr_per_kva": 562.0,
+    "fixed_charge_inr_per_month": 0,
+    "peak_hours": [[6, 9], [18, 21]],
+    "offpeak_hours": [[22, 6]],
+    "tod_applicable": true,
+    "tax_percent": 5.0
+  },
+  "maharashtra": {
+    "state_name": "Maharashtra",
+    "utility": "MSEDCL",
+    "category": "HT-I Industrial",
+    "energy_charge_peak_inr_per_kwh": 12.00,
+    "energy_charge_offpeak_inr_per_kwh": 5.00,
+    "energy_charge_normal_inr_per_kwh": 8.00,
+    "demand_charge_inr_per_kva": 600.0,
+    "fixed_charge_inr_per_month": 0,
+    "peak_hours": [[9, 12], [18, 21]],
+    "offpeak_hours": [[22, 6]],
+    "tod_applicable": true,
+    "tax_percent": 10.0
+  },
+  "karnataka": {
+    "state_name": "Karnataka",
+    "utility": "BESCOM",
+    "category": "HT Industrial",
+    "energy_charge_peak_inr_per_kwh": 8.00,
+    "energy_charge_offpeak_inr_per_kwh": 6.00,
+    "energy_charge_normal_inr_per_kwh": 7.00,
+    "demand_charge_inr_per_kva": 300.0,
+    "fixed_charge_inr_per_month": 0,
+    "peak_hours": [[6, 9], [18, 21]],
+    "offpeak_hours": [[22, 6]],
+    "tod_applicable": true,
+    "tax_percent": 9.0
+  }
+}

@@ -49,6 +49,7 @@ export async function analyzeEnergy(params) {
     horizon_days: parseInt(params.horizon_days || 1),
     csv_file_id: params.csv_file_id || null,
     use_real_data: !!params.use_real_data,
+    chemistry: params.chemistry || 'lfp',
   };
   
   console.log("[API] Sending Analysis Payload:", payload);
@@ -59,6 +60,26 @@ export async function analyzeEnergy(params) {
     body: JSON.stringify(payload),
   });
 
+  return parseResponse(res);
+}
+
+/**
+ * Get portfolio data
+ */
+export async function getPortfolio() {
+  const res = await fetch(`${API_BASE_URL}/portfolio`);
+  return parseResponse(res);
+}
+
+/**
+ * Send real-time control signal
+ */
+export async function sendControlSignal(deviceType, data) {
+  const res = await fetch(`${API_BASE_URL}/control/${deviceType}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
   return parseResponse(res);
 }
 

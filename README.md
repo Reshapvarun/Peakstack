@@ -1,20 +1,31 @@
-# Peakstack: AI-Powered BESS Investment Advisor
+# Peakstack EMS Platform
 
-Peakstack is a SaaS platform designed to help industrial clients in India optimize Battery Energy Storage System (BESS) investments. It combines machine learning forecasts with a high-fidelity industrial billing engine.
+Peakstack is an Energy Management System (EMS) designed for industrial High Tension (HT) consumers in India. It optimizes Battery Energy Storage System (BESS) dispatch to reduce energy costs and peak demand charges.
 
-## 🚀 Key Features
-*   **HT Billing Engine:** Simulates realistic Indian industrial electricity bills including Time-of-Day (ToD) rates and demand charges.
-*   **Automated Tariff Updates:** Monitors state regulator websites for changes in energy policies.
-*   **Decision Intelligence:** Compares CAPEX, EaaS, and Hybrid business models to find the best ROI.
-*   **XAI Integration:** Provides explainable AI insights into battery charging/discharging decisions.
+## Features
+- **Deterministic Dispatch Engine**: Rule-based battery control (Charge off-peak, Discharge peak).
+- **Industrial Billing Engine**: Accurate calculation of energy and demand charges for Indian HT tariffs.
+- **State-Specific Tariffs**: Pre-configured data for Tamil Nadu, Maharashtra, and Karnataka.
+- **Analysis Pipeline**: Automated 6-stage pipeline for BESS investment assessment.
 
-## 📂 Core Structure
-*   `main_2.py`: FastAPI entry point and orchestration layer.
-*   `engine.py`: Logic for calculating energy, demand, and fixed charges.
-*   `decision_engine.py`: Multi-factor scoring for optimal battery sizing.
-*   `data_ingestion.py`: Pre-processing for demo and real-world CSV data.
+## Quick Start
 
-## 🛠️ Setup
-1. Install dependencies: `pip install -r requirements.txt`
-2. Ensure `config/state_tariffs.json` is populated with valid state data.
-3. Run the server: `python app/api/main_2.py`
+### Prerequisites
+- Python 3.8+
+- Dependencies: `numpy`, `pandas` (optional, for advanced features)
+
+### Running the Demo
+To see the platform in action with a synthetic industrial load profile and real Tamil Nadu tariff data, run:
+
+```bash
+python run_demo.py
+```
+
+## Directory Structure
+- `app/core/`: Core logic for dispatch and billing.
+- `app/pipeline.py`: Pipeline orchestrator.
+- `config/`: Configuration files (tariffs, etc.).
+- `models/ml/`: Placeholder for future machine learning models.
+
+## License
+Proprietary

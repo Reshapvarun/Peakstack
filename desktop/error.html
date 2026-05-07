@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Connection Error</title>
+    <style>
+        body {
+            background: #0f172a;
+            color: #f8fafc;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .container {
+            text-align: center;
+            padding: 40px;
+            background: #1e293b;
+            border-radius: 16px;
+            border: 1px solid #334155;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+        h1 { color: #ef4444; margin-bottom: 16px; }
+        p { opacity: 0.8; line-height: 1.6; }
+        .btn {
+            margin-top: 24px;
+            padding: 10px 20px;
+            background: #6366f1;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Backend Not Found</h1>
+        <p>The PeakStack Energy Engine failed to start.<br/>Please ensure Python is installed and port 8000 is available.</p>
+        <button class="btn" onclick="window.location.reload()">Retry Launch</button>
+    </div>
+</body>
+</html>

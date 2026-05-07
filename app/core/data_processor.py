@@ -10,9 +10,22 @@ class DataProcessor:
     """
     Handles CSV data ingestion, validation, and gap filling for the Energy OS.
     """
-    def __init__(self, storage_path: str = "data/uploads"):
-        self.storage_path = storage_path
-        os.makedirs(storage_path, exist_ok=True)
+    def __init__(self, storage_path: Optional[str] = None):
+        if storage_path:
+            self.storage_path = storage_path
+        elif os.environ.get("PEAKSTACK_MODE") == "desktop":
+            # Cross-platform AppData path
+            if os.name == 'nt': # Windows
+                base = os.environ.get('APPDATA')
+            else: # Mac/Linux
+                base = os.path.expanduser('~/Library/Application Support')
+            
+            self.storage_path = os.path.join(base, "Peakstack", "data")
+        else:
+            self.storage_path = "data/uploads"
+            
+        os.makedirs(self.storage_path, exist_ok=True)
+        logger.info(f"DataProcessor initialized. Storage: {self.storage_path}")
 
     async def process_csv(self, file_path: str) -> Dict:
         """
