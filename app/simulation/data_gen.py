@@ -39,14 +39,14 @@ def generate_industrial_profile(days=30, site_id="Site_1"):
     ghi = np.array(ghi)
 
     # 1. Load Profile (kW)
-    base_load = 200 
-    daily_cycle = 100 * np.sin(np.linspace(0, 2 * np.pi * days, intervals))
-    random_spikes = np.random.choice([0, 150, 300], size=intervals, p=[0.9, 0.07, 0.03])
+    base_load = 300 
+    daily_cycle = 150 * np.sin(np.linspace(0, 2 * np.pi * days, intervals))
+    random_spikes = np.random.choice([0, 200, 500], size=intervals, p=[0.9, 0.07, 0.03])
     
     # Add cooling load penalty when temperature > 28C
-    cooling_load = np.where(temperature_c > 28, (temperature_c - 28) * 15, 0)
+    cooling_load = np.where(temperature_c > 28, (temperature_c - 28) * 20, 0)
     
-    load = base_load + daily_cycle + random_spikes + cooling_load + np.random.normal(0, 10, intervals)
+    load = base_load + daily_cycle + random_spikes + cooling_load + np.random.normal(0, 20, intervals)
     load = np.maximum(load, 50) # Min load 50kW
 
     # 2. Solar Generation (kW)

@@ -1,117 +1,157 @@
 import logging
 import json
 import os
+import uuid
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 import numpy as np
 
 from app.core.dispatch_engine import RuleBasedDispatchEngine
 from app.core.engine import BillingEngine
-from app.schemas import AnalysisResponse
+from app.core.tariff import TariffManager, StateTariff
+from app.core.finance import FinancialEngine, FinanceConfig
 
 logger = logging.getLogger(__name__)
 
 class PipelineOrchestrator:
     """
-    Orchestrates the 6-stage analysis pipeline.
+    Investor-Ready EMS Analysis Pipeline.
+    Hardened for operational realism and multi-site aggregation.
     """
     def __init__(self, config_path: str = "config/state_tariffs.json"):
-        self.config_path = config_path
-        with open(self.config_path, 'r') as f:
-            self.tariffs = json.load(f)
+        self.tariff_manager = TariffManager(config_path)
+        self.finance_engine = FinancialEngine()
 
     async def run(self, request: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Runs the pipeline and returns a valid AnalysisResponse structure.
+        Runs the full analysis pipeline for a single site.
         """
         state_key = request.get('state', 'tamil_nadu').lower().replace(' ', '_')
-        if state_key not in self.tariffs:
-            logger.warning(f"State {state_key} not found, falling back to tamil_nadu")
-            state_key = 'tamil_nadu'
-        
-        tariff = self.tariffs[state_key]
-        
-        # 1. Data Ingestion (Synthetic for now as per requirements)
+        tariff = self.tariff_manager.get_tariff(state_key)
+        if not tariff:
+            logger.warning(f"Tariff for {state_key} not found, using default.")
+            from app.core.tariff import DEFAULT_TARIFF
+            tariff = DEFAULT_TARIFF
+
+        # 1. Data Ingestion (Synthetic Industrial Profile)
         annual_kwh = request.get('annual_kwh', 600000)
-        load_profile = self._generate_synthetic_load(annual_kwh)
         solar_kw = request.get('solar_kw', 0)
+        
+        load_profile = self._generate_synthetic_load(annual_kwh)
         solar_profile = self._generate_solar_profile(solar_kw)
+
+        # 2. Hardened Dispatch Simulation
+        battery_kwh = request.get('battery_kwh', 500)
+        battery_power_kw = request.get('battery_power_kw', 125)
         
-        # 2. Forecasting (Stub)
-        # In this MVP, forecast = synthetic profile
-        
-        # 3. Optimization (Dispatch Engine)
         dispatch_engine = RuleBasedDispatchEngine(
-            battery_kwh=request.get('battery_kwh', 500),
-            battery_power_kw=request.get('battery_power_kw', 125)
+            battery_kwh=battery_kwh,
+            battery_power_kw=battery_power_kw
         )
+        
+        # Identify target grid limit for peak shaving (e.g., 85th percentile)
+        target_limit = np.percentile(load_profile, 85)
+        
         dispatch_results = dispatch_engine.run_dispatch(
             load_profile=load_profile,
             solar_profile=solar_profile,
-            peak_hours=tariff['peak_hours'],
-            offpeak_hours=tariff['offpeak_hours']
+            peak_hours=tariff.peak_hours,
+            offpeak_hours=tariff.offpeak_hours,
+            target_grid_limit_kw=target_limit
         )
-        
-        # 4. Billing Engine
+
+        # 3. Billing & Savings Analysis
         billing_engine = BillingEngine(tariff)
         
         bill_without_bess = billing_engine.calculate_bill(dispatch_results['grid_import_without_bess'])
         bill_with_bess = billing_engine.calculate_bill(dispatch_results['grid_import_with_bess'])
         
         monthly_savings = bill_without_bess['total_bill'] - bill_with_bess['total_bill']
-        annual_savings = monthly_savings * 12
         
-        # 5. Financial Analysis (Payback)
-        # Battery Cost estimate: ₹15,000 / kWh
-        battery_cost = request.get('battery_kwh', 500) * 15000
-        payback_years = battery_cost / annual_savings if annual_savings > 0 else 99
+        # 4. Hardened Financial Analysis
+        finance_results = self.finance_engine.run_analysis(monthly_savings, battery_kwh)
         
-        # 6. Recommendation
-        recommendation = "INSTALL" if payback_years < 6 else "INVESTIGATE"
+        # 5. Economic Justification Check (Phase 5)
+        is_justified = finance_results['irr_pct'] > 12.0 # 12% Hurdle Rate
         
-        # Construct AnalysisResponse
-        response = {
-            "analysis_id": "anlyz-" + os.urandom(4).hex(),
-            "summary": {
-                "monthly_savings": round(monthly_savings, 2),
-                "annual_savings": round(annual_savings, 2),
-                "payback_years": round(payback_years, 2),
-                "peak_reduction_kw": round(bill_without_bess['actual_peak'] * 0.95 - bill_with_bess['actual_peak'] * 0.95, 2)
+        # 6. Investor-Grade Summary (Phase 6)
+        summary = self._generate_investor_summary(
+            request.get('site_name', 'Industrial Site'),
+            tariff,
+            battery_kwh,
+            battery_power_kw,
+            bill_without_bess,
+            bill_with_bess,
+            finance_results,
+            is_justified
+        )
+
+        return {
+            "analysis_id": str(uuid.uuid4()),
+            "site_name": request.get('site_name', 'Industrial Site'),
+            "is_economically_justified": is_justified,
+            "investor_summary": summary,
+            "financials": finance_results,
+            "dispatch": {
+                "peak_reduction_kw": dispatch_results['peak_reduction_kw'],
+                "daily_throughput_kwh": dispatch_results['daily_discharge_kwh'],
+                "soc_profile": dispatch_results['battery_soc']
             },
-            "recommendation": {
-                "decision": recommendation,
-                "optimal_size": request.get('battery_kwh', 500),
-                "confidence": "HIGH"
-            },
-            "charts": {
-                "load_profile": load_profile,
-                "bess_soc": dispatch_results['battery_soc'],
-                "grid_with_bess": dispatch_results['grid_import_with_bess'],
-                "grid_without_bess": dispatch_results['grid_import_without_bess']
-            },
-            "bill_breakdown": {
-                "without_bess": bill_without_bess,
+            "bills": {
+                "baseline": bill_without_bess,
                 "with_bess": bill_with_bess
             }
         }
+
+    def _generate_investor_summary(self, site_name, tariff, kwh, kw, bill_old, bill_new, finance, justified) -> str:
+        status = "RECOMMENDED" if justified else "NOT RECOMMENDED (Low ROI)"
         
-        return response
+        summary = f"""
+================================================
+PEAKSTACK EMS ANALYSIS
+======================
+
+SITE: {site_name}
+STATE: {tariff.state_name} ({tariff.utility})
+STATUS: {status}
+
+## BASELINE
+Peak Demand:              {bill_old['peak_demand_kva']:.1f} kVA
+Monthly Energy Cost:      INR {bill_old['energy_charge']:,.0f}
+Monthly Demand Charges:   INR {bill_old['demand_charge']:,.0f}
+Total Monthly Bill:       INR {bill_old['total_bill']:,.0f}
+
+## WITH BATTERY EMS
+Battery Size:             {kwh} kWh
+Battery Power:            {kw} kW
+
+Peak Demand:              {bill_new['peak_demand_kva']:.1f} kVA
+Monthly Bill:             INR {bill_new['total_bill']:,.0f}
+
+## RESULTS
+Monthly Savings:          INR {bill_old['total_bill'] - bill_new['total_bill']:,.0f}
+Annual Savings (Y1):      INR {finance['annual_savings_year1']:,.0f}
+Peak Reduction:           {bill_old['peak_demand_kva'] - bill_new['peak_demand_kva']:.1f} kVA
+
+## FINANCIALS
+Estimated CAPEX:          INR {finance['estimated_capex']:,.0f}
+Simple Payback:           {finance['simple_payback_years']:.1f} years
+10Y NPV:                  INR {finance['npv_10yr']:,.0f}
+IRR:                      {finance['irr_pct']:.1f}%
+
+================================================
+"""
+        return summary
 
     def _generate_synthetic_load(self, annual_kwh: float) -> List[float]:
-        # Industrial profile: base 200 kW, peak 400 kW
-        # For annual_kwh 600,000 -> daily 1643 kWh. 
-        # If peak is 400 kW, that's a very high peak for 1643 kWh daily.
-        # Let's scale a representative profile to match annual_kwh.
-        
+        # Industrial profile: base 200 kW, peak 600 kW
         base_load = 200.0
-        peak_load = 400.0
-        
+        peak_load = 600.0
         profile = []
         for i in range(96):
             hour = (i // 4) % 24
-            # Peak hours: 09:00-12:00 and 18:00-21:00
             if (9 <= hour < 12) or (18 <= hour < 21):
-                profile.append(peak_load + np.random.uniform(-20, 20))
+                profile.append(peak_load + np.random.uniform(-30, 30))
             else:
                 profile.append(base_load + np.random.uniform(-10, 10))
         
@@ -119,17 +159,15 @@ class PipelineOrchestrator:
         daily_kwh_target = annual_kwh / 365
         current_daily_kwh = sum(profile) * 0.25
         scale = daily_kwh_target / current_daily_kwh
-        
         return [max(0, p * scale) for p in profile]
 
     def _generate_solar_profile(self, capacity_kw: float) -> List[float]:
         profile = []
         for i in range(96):
             hour = (i // 4) % 24
-            if 6 <= hour < 18:
-                # Sine wave for solar
-                val = capacity_kw * np.sin(np.pi * (hour - 6) / 12)
-                profile.append(max(0, val + np.random.uniform(-0.1 * capacity_kw, 0.1 * capacity_kw)))
+            if 7 <= hour < 17:
+                val = capacity_kw * np.sin(np.pi * (hour - 7) / 10)
+                profile.append(max(0, val + np.random.uniform(-2, 2)))
             else:
                 profile.append(0.0)
         return profile
