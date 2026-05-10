@@ -40,11 +40,13 @@ from fastapi.responses import FileResponse, JSONResponse
 app = FastAPI(title="Peakstack Energy OS", version="2.0.0-saas")
 
 # Restricted CORS for SaaS production
+# Public CORS for Demo Access
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # In production, replace with actual domain
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
 )
 
 # Include production routes
