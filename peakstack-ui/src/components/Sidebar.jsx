@@ -2,15 +2,21 @@ import React, { useEffect, useState } from 'react';
 import { getSupportedStates } from '../api/client';
 import logo from '../assets/logo.png';
 
-export default function Sidebar({ inputs, updateInput, onAnalyze, loading, error }) {
-  const [states, setStates] = useState(['tamil_nadu', 'maharashtra', 'karnataka']);
+export default function Sidebar({ 
+  state, setState, 
+  annualKwh, setAnnualKwh, 
+  batteryKwh, setBatteryKwh, 
+  batteryPowerKw, setBatteryPowerKw, 
+  onAnalyze, loading, error 
+}) {
+  const [availableStates, setAvailableStates] = useState(['tamil_nadu', 'maharashtra', 'karnataka']);
 
   useEffect(() => {
     const fetchStates = async () => {
       try {
         const data = await getSupportedStates();
         if (data.supported_states) {
-          setStates(data.supported_states);
+          setAvailableStates(data.supported_states);
         }
       } catch (err) {
         console.error("Failed to load states", err);
@@ -32,11 +38,11 @@ export default function Sidebar({ inputs, updateInput, onAnalyze, loading, error
         <div className="form-group">
           <label>Location (State/UT)</label>
           <select 
-            value={inputs.state} 
-            onChange={(e) => updateInput('state', e.target.value)}
+            value={state} 
+            onChange={(e) => setState(e.target.value)}
             disabled={loading}
           >
-            {states.map(s => (
+            {availableStates.map(s => (
               <option key={s} value={s}>
                 {s.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
               </option>
@@ -48,8 +54,8 @@ export default function Sidebar({ inputs, updateInput, onAnalyze, loading, error
           <label>Annual Consumption (kWh)</label>
           <input 
             type="number" 
-            value={inputs.annual_kwh} 
-            onChange={(e) => updateInput('annual_kwh', parseFloat(e.target.value) || 0)}
+            value={annualKwh} 
+            onChange={(e) => setAnnualKwh(parseFloat(e.target.value) || 0)}
             disabled={loading}
           />
         </div>
@@ -58,8 +64,8 @@ export default function Sidebar({ inputs, updateInput, onAnalyze, loading, error
           <label>Battery Capacity (kWh)</label>
           <input 
             type="number" 
-            value={inputs.battery_kwh} 
-            onChange={(e) => updateInput('battery_kwh', parseFloat(e.target.value) || 0)}
+            value={batteryKwh} 
+            onChange={(e) => setBatteryKwh(parseFloat(e.target.value) || 0)}
             disabled={loading}
           />
         </div>
@@ -68,8 +74,8 @@ export default function Sidebar({ inputs, updateInput, onAnalyze, loading, error
           <label>Battery Power Rating (kW)</label>
           <input 
             type="number" 
-            value={inputs.battery_power_kw} 
-            onChange={(e) => updateInput('battery_power_kw', parseFloat(e.target.value) || 0)}
+            value={batteryPowerKw} 
+            onChange={(e) => setBatteryPowerKw(parseFloat(e.target.value) || 0)}
             disabled={loading}
           />
         </div>

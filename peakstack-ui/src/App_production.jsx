@@ -9,12 +9,10 @@ import jsPDF from 'jspdf';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function App() {
-  const [inputs, setInputs] = useState({
-    state: 'tamil_nadu',
-    annual_kwh: 600000,
-    battery_kwh: 500,
-    battery_power_kw: 125,
-  });
+  const [state, setState] = useState('tamil_nadu');
+  const [annualKwh, setAnnualKwh] = useState(600000);
+  const [batteryKwh, setBatteryKwh] = useState(500);
+  const [batteryPowerKw, setBatteryPowerKw] = useState(125);
 
   const [response, setResponse] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -28,18 +26,20 @@ export default function App() {
   const handleAnalyze = async () => {
     setLoading(true);
     setError(null);
+    const payload = {
+      state: state,
+      annual_kwh: annualKwh,
+      battery_kwh: batteryKwh,
+      battery_power_kw: batteryPowerKw
+    };
     try {
-      const result = await analyzesite(inputs);
+      const result = await analyzesite(payload);
       setResponse(result);
     } catch (err) {
       setError(err.message || 'Analysis failed.');
     } finally {
       setLoading(false);
     }
-  };
-
-  const updateInput = (key, value) => {
-    setInputs(prev => ({ ...prev, [key]: value }));
   };
 
   const handleDownloadPDF = async () => {
@@ -63,8 +63,14 @@ export default function App() {
   return (
     <div className="app-container">
       <Sidebar 
-        inputs={inputs} 
-        updateInput={updateInput} 
+        state={state}
+        setState={setState}
+        annualKwh={annualKwh}
+        setAnnualKwh={setAnnualKwh}
+        batteryKwh={batteryKwh}
+        setBatteryKwh={setBatteryKwh}
+        batteryPowerKw={batteryPowerKw}
+        setBatteryPowerKw={setBatteryPowerKw}
         onAnalyze={handleAnalyze}
         loading={loading}
         error={error}
@@ -115,7 +121,7 @@ export default function App() {
                   Validated savings of&nbsp;
                   <strong>{formatCurrency(response?.annual_savings_inr ?? 0)}/year</strong>
                   &nbsp;with a&nbsp;
-                  <strong>{inputs?.battery_kwh ?? 0} kWh</strong> BESS system.
+                  <strong>{batteryKwh} kWh</strong> BESS system.
                 </div>
 
                 {/* Recommendation Hero */}
@@ -124,7 +130,7 @@ export default function App() {
                   <div className="rec-details">
                     <h4>Feasibility Verdict</h4>
                     <h2>{(response?.recommendation ?? 'INVESTIGATE').toUpperCase()} BESS</h2>
-                    <p>Based on {inputs?.state ?? 'N/A'} HT tariff structures and load patterns.</p>
+                    <p>Based on {state} HT tariff structures and load patterns.</p>
                   </div>
                   <div className="rec-metrics">
                     <div className="rec-metric-item">
