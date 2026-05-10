@@ -1,9 +1,16 @@
-import numpy as np
-import pandas as pd
-import joblib
-import os
-from datetime import datetime
-# Note: ML imports (shap) are performed lazily inside methods to optimize startup time
+try:
+    import xgboost as xgb
+    XGBOOST_AVAILABLE = True
+except ImportError:
+    xgb = None
+    XGBOOST_AVAILABLE = False
+
+try:
+    import shap
+    SHAP_AVAILABLE = True
+except ImportError:
+    shap = None
+    SHAP_AVAILABLE = False
 
 class EnergyForecaster:
     """
@@ -32,14 +39,14 @@ class EnergyForecaster:
         self.solar_explainer = None
         
         # Lazy SHAP setup
-        try:
-            import shap
-            if self.load_model is not None:
-                self.load_explainer = shap.TreeExplainer(self.load_model)
-            if self.solar_model is not None:
-                self.solar_explainer = shap.TreeExplainer(self.solar_model)
-        except ImportError:
-            print("Warning: SHAP not found. Explainability disabled.")
+        if SHAP_AVAILABLE:
+            try:
+                if self.load_model is not None:
+                    self.load_explainer = shap.TreeExplainer(self.load_model)
+                if self.solar_model is not None:
+                    self.solar_explainer = shap.TreeExplainer(self.solar_model)
+            except Exception as e:
+                print(f"Warning: SHAP initialization failed: {e}")
 
     def _load_model(self, filename):
         path = os.path.join(self.model_dir, filename)
@@ -87,6 +94,13 @@ class EnergyForecaster:
         Generates forecasts for the next 24 hours (96 intervals).
         Expects current_df to contain historical data (ideally >= 24h).
         """
+        if not XGBOOST_AVAILABLE:
+            return {
+                "status": "unavailable",
+                "message": "ML forecasting layer not active in demo mode",
+                "demo_mode": True
+            }
+
         if self.load_model is None or self.solar_model is None:
             # Improved fallback: Use time-of-day averages instead of flat line
             current_df['hour'] = pd.to_datetime(current_df['timestamp']).dt.hour

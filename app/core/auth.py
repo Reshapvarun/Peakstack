@@ -1,6 +1,10 @@
 from datetime import datetime, timedelta
 from typing import Optional
-from jose import JWTError, jwt
+try:
+    from jose import JWTError, jwt
+except ImportError:
+    JWTError = Exception
+    jwt = None
 from passlib.context import CryptContext
 from fastapi.security import OAuth2PasswordBearer
 from fastapi import Depends, HTTPException, status, Request

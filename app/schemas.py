@@ -3,7 +3,12 @@ Pydantic models for BESS analysis API
 Task #3 & #4: Request and Response schemas
 """
 
-from pydantic import BaseModel, Field, validator, EmailStr
+try:
+    from pydantic import EmailStr
+except ImportError:
+    EmailStr = str
+
+from pydantic import BaseModel, Field, validator
 from typing import List, Optional, Dict, Any
 from enum import Enum
 from datetime import datetime

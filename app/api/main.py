@@ -75,8 +75,11 @@ def test_route():
 @app.get("/health")
 def health():
     return {
-        "status": "ok",
-        "version": "2.0.0-saas"
+        "status": "healthy",
+        "version": "2.0.0-saas",
+        "engine": "rule-based-dispatch",
+        "ml_layer": "roadmap",
+        "demo_mode": True
     }
 
 # --- SINGLE DOMAIN SERVING ---

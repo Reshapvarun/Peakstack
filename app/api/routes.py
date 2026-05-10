@@ -21,10 +21,14 @@ from app.core.tariff import load_tariff
 from app.core.battery import BatteryConfig
 from app.core.optimizer import EnergyOptimizer
 from app.core.finance import FinancialEngine, FinanceConfig
-from app.core.auth import (
-    get_password_hash, verify_password, create_access_token, 
-    get_current_user_email, get_current_user_from_cookie
-)
+try:
+    from app.core.auth import (
+        get_password_hash, verify_password, create_access_token, 
+        get_current_user_email, get_current_user_from_cookie
+    )
+    AUTH_ENABLED = True
+except ImportError:
+    AUTH_ENABLED = False
 from app.db.session import get_db, init_db, SessionLocal
 from app.db.models import User, AnalysisRecord
 from sqlalchemy.orm import Session
@@ -98,8 +102,8 @@ async def logout(response: Response):
     response.delete_cookie("access_token")
     return {"message": "Logged out successfully"}
 
-@router.get("/auth/me", response_model=UserResponse)
-async def get_me(email: str = Depends(get_current_user_from_cookie), db: Session = Depends(get_db)):
+@router.get("/auth/me", response_model=UserResponse, dependencies=[Depends(get_current_user_from_cookie)] if AUTH_ENABLED else [])
+async def get_me(email: str = None, db: Session = Depends(get_db)):
     """Get current authenticated user info"""
     user = db.query(User).filter(User.email == email).first()
     if not user:
@@ -125,10 +129,10 @@ def check_rate_limit(email: str, limit: int, window_seconds: int = 60):
     rate_limit_data[email].append(now)
     return True
 
-@router.post("/upload-data")
+@router.post("/upload-data", dependencies=[Depends(get_current_user_from_cookie)] if AUTH_ENABLED else [])
 async def upload_data(
     file: UploadFile = File(...),
-    email: str = Depends(get_current_user_from_cookie),
+    email: str = None,
     db: Session = Depends(get_db)
 ):
     """Upload CSV data with security validation"""
@@ -297,8 +301,8 @@ def _run_heavy_analysis(job_record_id: int, request: AnalysisRequest):
     finally:
         db.close()
 
-@router.get("/jobs/{job_id}")
-async def get_job_status(job_id: int, email: str = Depends(get_current_user_from_cookie), db: Session = Depends(get_db)):
+@router.get("/jobs/{job_id}", dependencies=[Depends(get_current_user_from_cookie)] if AUTH_ENABLED else [])
+async def get_job_status(job_id: int, email: str = None, db: Session = Depends(get_db)):
     """Poll job status and get results if ready"""
     user = db.query(User).filter(User.email == email).first()
     job = db.query(AnalysisRecord).filter(AnalysisRecord.id == job_id, AnalysisRecord.user_id == user.id).first()
@@ -315,8 +319,8 @@ async def get_job_status(job_id: int, email: str = Depends(get_current_user_from
 
 
 
-@router.get("/analyses", response_model=list[dict])
-async def list_analyses(email: str = Depends(get_current_user_email), db: Session = Depends(get_db)):
+@router.get("/analyses", response_model=list[dict], dependencies=[Depends(get_current_user_email)] if AUTH_ENABLED else [])
+async def list_analyses(email: str = None, db: Session = Depends(get_db)):
     """List all previous analyses for the current user"""
     user = db.query(User).filter(User.email == email).first()
     if not user:
@@ -325,8 +329,8 @@ async def list_analyses(email: str = Depends(get_current_user_email), db: Sessio
     analyses = db.query(AnalysisRecord).filter(AnalysisRecord.user_id == user.id).all()
     return [{"id": a.id, "name": a.analysis_name, "timestamp": a.timestamp} for a in analyses]
 
-@router.post("/dispatch", response_model=dict)
-async def get_dispatch_schedule(request: AnalysisRequest, email: str = Depends(get_current_user_email)):
+@router.post("/dispatch", response_model=dict, dependencies=[Depends(get_current_user_email)] if AUTH_ENABLED else [])
+async def get_dispatch_schedule(request: AnalysisRequest, email: str = None):
     """Get detailed dispatch schedule for a configuration"""
     try:
         pipeline_context = await orchestrator.run(request)
@@ -344,11 +348,12 @@ async def get_dispatch_schedule(request: AnalysisRequest, email: str = Depends(g
 @router.get(
     "/analyses/{analysis_id}",
     response_model=AnalysisResponse,
-    summary="Retrieve Previous Analysis"
+    summary="Retrieve Previous Analysis",
+    dependencies=[Depends(get_current_user_email)] if AUTH_ENABLED else []
 )
 async def get_analysis(
     analysis_id: int, 
-    email: str = Depends(get_current_user_email), 
+    email: str = None, 
     db: Session = Depends(get_db)
 ) -> AnalysisResponse:
     """
@@ -527,8 +532,8 @@ def _build_analysis_response(job_id: int, request: AnalysisRequest, pipeline_con
 
 # ================= CONTROL & PORTFOLIO APIs (v4) =================
 
-@router.post("/control/{device_type}", tags=["Control"])
-async def send_control_signal(device_type: str, signal: ControlRequestSchema, user: User = Depends(get_current_user_from_cookie)):
+@router.post("/control/{device_type}", tags=["Control"], dependencies=[Depends(get_current_user_from_cookie)] if AUTH_ENABLED else [])
+async def send_control_signal(device_type: str, signal: ControlRequestSchema, user: User = None):
     """
     Execute real-time control logic for BESS, DG, or Grid.
     In production, this triggers hardware PLC/SCADA commands.
@@ -538,8 +543,8 @@ async def send_control_signal(device_type: str, signal: ControlRequestSchema, us
     await asyncio.sleep(0.5)
     return {"status": "executed", "signal_id": str(uuid.uuid4()), "executed_at": datetime.utcnow()}
 
-@router.get("/portfolio", response_model=PortfolioSummarySchema, tags=["Portfolio"])
-async def get_portfolio_summary(user: User = Depends(get_current_user_from_cookie), db: Session = Depends(get_db)):
+@router.get("/portfolio", response_model=PortfolioSummarySchema, tags=["Portfolio"], dependencies=[Depends(get_current_user_from_cookie)] if AUTH_ENABLED else [])
+async def get_portfolio_summary(user: User = None, db: Session = Depends(get_db)):
     """
     Get aggregated energy metrics across all facilities in the user's portfolio.
     """
