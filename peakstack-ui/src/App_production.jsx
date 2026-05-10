@@ -113,9 +113,9 @@ export default function App() {
                 <div className="summary-alert">
                   <span style={{ fontSize: 18 }}>✅</span>
                   Validated savings of&nbsp;
-                  <strong>{formatCurrency(response.annual_savings_inr)}/year</strong>
+                  <strong>{formatCurrency(response?.annual_savings_inr ?? 0)}/year</strong>
                   &nbsp;with a&nbsp;
-                  <strong>{inputs.battery_kwh} kWh</strong> BESS system.
+                  <strong>{inputs?.battery_kwh ?? 0} kWh</strong> BESS system.
                 </div>
 
                 {/* Recommendation Hero */}
@@ -123,21 +123,21 @@ export default function App() {
                   <div className="rec-icon">🏆</div>
                   <div className="rec-details">
                     <h4>Feasibility Verdict</h4>
-                    <h2>{response.recommendation} BESS</h2>
-                    <p>Based on {inputs.state} HT tariff structures and load patterns.</p>
+                    <h2>{(response?.recommendation ?? 'INVESTIGATE').toUpperCase()} BESS</h2>
+                    <p>Based on {inputs?.state ?? 'N/A'} HT tariff structures and load patterns.</p>
                   </div>
                   <div className="rec-metrics">
                     <div className="rec-metric-item">
                       <span className="lbl">Payback</span>
-                      <span className="val">{response.payback_years} Yrs</span>
+                      <span className="val">{response?.payback_years ?? 'N/A'} Yrs</span>
                     </div>
                     <div className="rec-metric-item">
                       <span className="lbl">IRR</span>
-                      <span className="val">{response.irr_pct}%</span>
+                      <span className="val">{response?.irr_pct ?? 0}%</span>
                     </div>
                     <div className="rec-metric-item">
                       <span className="lbl">Peak Reduc.</span>
-                      <span className="val" style={{ color: '#10b981' }}>{response.peak_reduction_pct}%</span>
+                      <span className="val" style={{ color: '#10b981' }}>{response?.peak_reduction_pct ?? 0}%</span>
                     </div>
                   </div>
                 </div>
@@ -146,22 +146,22 @@ export default function App() {
                 <div className="kpi-grid">
                   <div className="kpi-card">
                     <h4>Monthly Savings</h4>
-                    <div className="val">{formatCurrency(response.monthly_savings_inr)}</div>
-                    <div className="change">~{formatCurrency(response.monthly_savings_inr/30)} /day</div>
+                    <div className="val">{formatCurrency(response?.monthly_savings_inr ?? 0)}</div>
+                    <div className="change">~{formatCurrency((response?.monthly_savings_inr ?? 0)/30)} /day</div>
                   </div>
                   <div className="kpi-card">
                     <h4>NPV (10Y)</h4>
-                    <div className="val">{formatCurrency(response.npv_10yr_inr)}</div>
+                    <div className="val">{formatCurrency(response?.npv_10yr_inr ?? 0)}</div>
                     <div className="change">Net Present Value</div>
                   </div>
                   <div className="kpi-card">
                     <h4>Baseline Peak</h4>
-                    <div className="val">{response.peak_demand_kva_baseline} kVA</div>
+                    <div className="val">{response?.peak_demand_kva_baseline ?? 0} kVA</div>
                     <div className="change">Standard Demand</div>
                   </div>
                   <div className="kpi-card">
                     <h4>Optimized Peak</h4>
-                    <div className="val" style={{ color: 'var(--accent)' }}>{response.peak_demand_kva_with_bess} kVA</div>
+                    <div className="val" style={{ color: 'var(--accent)' }}>{response?.peak_demand_kva_with_bess ?? 0} kVA</div>
                     <div className="change">With Peak Shaving</div>
                   </div>
                 </div>

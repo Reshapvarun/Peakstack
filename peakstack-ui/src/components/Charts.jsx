@@ -13,7 +13,9 @@ export default function Charts({
   const [replay, setReplay] = React.useState({ isPlaying: false, index: 0 });
   const [selectedPoint, setSelectedPoint] = React.useState(null);
 
-  if (!dailyChart) return null;
+  if (!dailyChart || !dailyChart.timestamps || dailyChart.timestamps.length === 0) {
+    return <div style={{ padding: 20, color: 'var(--text-muted)', fontSize: 12 }}>Waiting for operational data...</div>;
+  }
 
   const dailyChartData = dailyChart.timestamps.map((time, i) => ({
     time: time,
