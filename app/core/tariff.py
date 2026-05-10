@@ -1,5 +1,15 @@
+"""
+Peakstack EMS — tariff.py
+Indigenously developed by Peakstack Technologies
+India-specific BESS optimization for HT industrial consumers
+DPIIT Startup India | VGF EMS Domestic Content Compliant
+github.com/Reshapvarun/Peakstack
+"""
+
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
+import json
+
 import json
 import os
 

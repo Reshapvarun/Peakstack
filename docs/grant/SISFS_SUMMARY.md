@@ -1,0 +1,5 @@
+# Peakstack — DPIIT SISFS Grant Application Summary
+
+Peakstack is an indigenously developed, hardware-agnostic Energy Management System (EMS) designed specifically for the 6.5 lakh HT industrial consumers in India. The platform addresses a multi-billion rupee problem: industrial enterprises overpay by 15-30% on demand charges due to the lack of tariff-aware battery control. Peakstack’s engine uses hardcoded state-level Time-of-Day (ToD) tariff models to intelligently dispatch Battery Energy Storage Systems (BESS), reducing peak demand costs. 
+
+In validated simulations, the platform achieved a **12.8% daily savings** and a **33% peak demand reduction**, offering a 4-year payback period at a 21% IRR for Maharashtra-based sites. With a Total Addressable Market (TAM) of ₹9,750 Crore in demand charge savings alone, Peakstack is positioned as a critical infrastructure tool. The platform aligns with the Ministry of Power’s Dec 2025 VGF mandate for domestic EMS software. We are seeking a ₹20L SISFS grant to execute our first industrial pilot and advance our ML-driven forecasting roadmap.

@@ -1,3 +1,11 @@
+"""
+Peakstack EMS — optimizer.py
+Indigenously developed by Peakstack Technologies
+India-specific BESS optimization for HT industrial consumers
+DPIIT Startup India | VGF EMS Domestic Content Compliant
+github.com/Reshapvarun/Peakstack
+"""
+
 import pulp
 import numpy as np
 from app.core.tariff import DEFAULT_TARIFF
@@ -90,4 +98,3 @@ class EnergyOptimizer:
             "soc_pct": [pulp.value(soc[t]) / self.battery.capacity_kwh * 100 for t in range(self.intervals)],
             "policy_mode": getattr(self.policy, "mode", "BTM_STRICT")
         }
-

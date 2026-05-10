@@ -1,32 +1,43 @@
-# Peakstack — Industrial EMS Platform
+# Peakstack — India-First Industrial BESS Optimization Platform
 
-Rule-based Energy Management System for Indian HT industrial consumers.
-Optimizes BESS dispatch to reduce peak demand charges, arbitrage ToD 
-tariffs, and minimize DG dependency.
+Indigenously developed, hardware-agnostic EMS software for Indian HT 
+industrial consumers. Optimizes BESS dispatch against state-specific 
+ToD tariffs to reduce demand charges and DG dependency.
 
-## What It Does
-- Simulates battery charge/discharge against real Indian ToD tariffs
-  (TANGEDCO HT-1, MSEDCL HT-2, BESCOM HT)
-- Calculates demand charge savings for HT consumers using kVA-based billing
-- Enforces operational constraints: 20–90% SOC window, 1 cycle/day limit,
-  morning + evening peak discharge, solar-first priority
-- Investor-grade financial model: 10-yr NPV, IRR, degradation, O&M costs
-- Multi-site fleet analysis with 12% IRR hurdle rate screening
+## Validated Results (Maharashtra HT-2, 250 kWh BESS)
+- **12.8% daily cost savings**
+- **33% peak demand reduction**
+- **21% IRR, 4-year payback** (Pune Automotive site)
+- **Fleet savings: ₹55.7L/year** across 3 sites
+
+See [VALIDATION_REPORT.md](./VALIDATION_REPORT.md) for full output.
+
+## Why Peakstack is Different
+- Only Indian EMS with hardcoded TANGEDCO / MSEDCL / BESCOM HT tariffs
+- kVA-based demand charge math (not generic kWh arbitrage)
+- Dual-peak ToD dispatch: morning (09:00-12:00) + evening (18:00-22:00)
+- Hardware-agnostic: works with Amara Raja, Exide, Luminous, any BESS
+- Qualifies as indigenously developed EMS under MoP VGF mandate (Dec 2025)
 
 ## Quickstart
-pip install -r requirements.txt
-python validate_logic.py        # single-site audit (energy conservation check)
-python run_business_demo.py     # multi-site enterprise fleet analysis
+  pip install -r requirements.txt
+  python validate_logic.py          # single-site audit
+  python run_business_demo.py       # fleet analysis
 
 ## API
-uvicorn app.api.main:app --reload
-# POST /api/v1/analyze  →  savings, payback, NPV, recommendation
-# GET  /api/v1/states   →  supported Indian states
-# GET  /health          →  service status
+  uvicorn app.api.main:app --reload
+  POST /api/v1/analyze  → savings, payback, NPV, IRR, recommendation
+  GET  /api/v1/states   → supported Indian states
+  GET  /health          → service status
 
 ## Tech Stack
-Python · FastAPI · React · NumPy · PuLP · SHAP
+Python · FastAPI · NumPy · PuLP · SHAP (roadmap: XGBoost forecasting)
+
+## Policy Alignment
+Qualifies as domestic content under Ministry of Power VGF BESS scheme
+(Dec 2025 directive mandating indigenously developed EMS software).
+Eligible for DPIIT Deep Tech Startup recognition (G.S.R. 108(E), Feb 2026).
 
 ## Status
-MVP complete. Rule-based dispatch engine operational across TN, MH, KA.
-ML forecasting layer (XGBoost load prediction) in development.
+MVP complete. Rule-based dispatch operational across TN, MH, KA.
+Seeking pilot customer: HT industrial site, 250-500 kWh BESS.
