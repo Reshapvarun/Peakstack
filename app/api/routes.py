@@ -532,8 +532,8 @@ def _build_analysis_response(job_id: int, request: AnalysisRequest, pipeline_con
 
 # ================= CONTROL & PORTFOLIO APIs (v4) =================
 
-@router.post("/control/{device_type}", tags=["Control"], dependencies=[Depends(get_current_user_from_cookie)] if AUTH_ENABLED else [])
-async def send_control_signal(device_type: str, signal: ControlRequestSchema, user: User = None):
+@router.post("/control/{device_type}", tags=["Control"], response_model=None, dependencies=[Depends(get_current_user_from_cookie)] if AUTH_ENABLED else [])
+async def send_control_signal(device_type: str, signal: ControlRequestSchema, user=None):
     """
     Execute real-time control logic for BESS, DG, or Grid.
     In production, this triggers hardware PLC/SCADA commands.
@@ -543,8 +543,8 @@ async def send_control_signal(device_type: str, signal: ControlRequestSchema, us
     await asyncio.sleep(0.5)
     return {"status": "executed", "signal_id": str(uuid.uuid4()), "executed_at": datetime.utcnow()}
 
-@router.get("/portfolio", response_model=PortfolioSummarySchema, tags=["Portfolio"], dependencies=[Depends(get_current_user_from_cookie)] if AUTH_ENABLED else [])
-async def get_portfolio_summary(user: User = None, db: Session = Depends(get_db)):
+@router.get("/portfolio", response_model=None, tags=["Portfolio"], dependencies=[Depends(get_current_user_from_cookie)] if AUTH_ENABLED else [])
+async def get_portfolio_summary(user=None, db: Session = Depends(get_db)):
     """
     Get aggregated energy metrics across all facilities in the user's portfolio.
     """
