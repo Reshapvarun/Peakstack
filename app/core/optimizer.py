@@ -4,11 +4,10 @@ from app.core.tariff import DEFAULT_TARIFF
 from app.core.battery import BatteryConfig
 
 class EnergyOptimizer:
-    def __init__(self, load_profile, solar_profile, wind_profile, battery_cfg: BatteryConfig,
-                 policy, dg_cost_per_kwh=18.0):
-        self.load = load_profile
-        self.solar = solar_profile
-        self.wind = wind_profile
+    def __init__(self, load_profile, solar_profile, battery_cfg: BatteryConfig, policy, wind_profile=None, dg_cost_per_kwh=18.0):
+        self.load = np.array(load_profile)
+        self.solar = np.array(solar_profile)
+        self.wind = np.array(wind_profile) if wind_profile is not None else np.zeros(len(load_profile))
         self.battery = battery_cfg
         self.intervals = len(load_profile)
         self.dg_cost_per_kwh = dg_cost_per_kwh
@@ -31,17 +30,27 @@ class EnergyOptimizer:
         energy_cost = 0
         degradation_cost = 0
         dg_cost = 0
+        
+        # Baseline calculations
+        baseline_energy_cost = 0
+        net_load_baseline = np.maximum(0, self.load - self.solar - self.wind)
+        peak_demand_baseline = np.max(net_load_baseline)
 
         for t in range(self.intervals):
             hour = (t // 4) % 24
-            rate_imp = self.policy.peak_rate if (10 <= hour < 14 or 18 <= hour < 22) else self.policy.off_peak_rate
+            rate_imp = self.policy.get_rate(hour) if hasattr(self.policy, 'get_rate') else (
+                self.policy.peak_rate if (10 <= hour < 14 or 18 <= hour < 22) else self.policy.off_peak_rate
+            )
 
             energy_cost += (grid_import[t] * 0.25 * rate_imp)
             dg_cost += (dg_gen[t] * 0.25 * self.dg_cost_per_kwh)
             degradation_cost += (bess_dis[t] + bess_char[t]) * 0.25 * self.battery.cycle_cost_per_kwh
+            
+            baseline_energy_cost += (net_load_baseline[t] * 0.25 * rate_imp)
 
         # Correct Demand Charge using State Policy
-        demand_charge_cost = peak_demand * (self.policy.demand_charge_per_kva / 30.0)
+        demand_charge_cost = peak_demand * (self.policy.demand_charge_inr_per_kva / 30.0 if hasattr(self.policy, 'demand_charge_inr_per_kva') else self.policy.demand_charge_per_kva / 30.0)
+        baseline_demand_cost = peak_demand_baseline * (self.policy.demand_charge_inr_per_kva / 30.0 if hasattr(self.policy, 'demand_charge_inr_per_kva') else self.policy.demand_charge_per_kva / 30.0)
 
         # Objective: Minimize Total cost (Strict BTM - No export revenue)
         prob += energy_cost + demand_charge_cost + degradation_cost + dg_cost
@@ -68,8 +77,11 @@ class EnergyOptimizer:
             "bess_char": [bess_char[t].varValue for t in range(self.intervals)],
             "curtailment": sum([curtailment[t].varValue for t in range(self.intervals)]) * 0.25,
             "peak_demand": pulp.value(peak_demand),
+            "peak_demand_baseline": peak_demand_baseline,
             "energy_cost": pulp.value(energy_cost),
             "demand_cost": pulp.value(demand_charge_cost),
+            "baseline_cost": baseline_energy_cost + baseline_demand_cost,
+            "optimized_cost": pulp.value(prob.objective),
             "degradation_cost": pulp.value(degradation_cost),
             "dg_cost": pulp.value(dg_cost),
             "export_revenue": 0,
@@ -77,3 +89,4 @@ class EnergyOptimizer:
             "battery_util": (sum(bess_dis[t].varValue for t in range(self.intervals)) * 0.25) / self.battery.capacity_kwh,
             "policy_mode": getattr(self.policy, "mode", "BTM_STRICT")
         }
+

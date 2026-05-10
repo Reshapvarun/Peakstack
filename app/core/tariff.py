@@ -74,3 +74,7 @@ DEFAULT_TARIFF = StateTariff(
     tod_applicable=True,
     tax_percent=5.0
 )
+def load_tariff(state_code: str) -> StateTariff:
+    manager = TariffManager()
+    tariff = manager.get_tariff(state_code)
+    return tariff if tariff else DEFAULT_TARIFF

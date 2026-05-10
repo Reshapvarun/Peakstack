@@ -69,6 +69,18 @@ class FinancialEngine:
             "cumulative_cashflow": [round(c, 0) for c in cumulative_cashflow]
         }
 
+    def calculate_roi(self, daily_savings: float, battery_capacity_kwh: float) -> Dict[str, Any]:
+        """
+        Special wrapper for the FastAPI wiring that takes daily savings.
+        """
+        results = self.run_analysis(daily_savings * 30, battery_capacity_kwh)
+        return {
+            "payback_period_years": results["simple_payback_years"],
+            "annual_roi_pct": results["irr_pct"], # Using IRR as annual ROI
+            "net_present_value_10yr": results["npv_10yr"],
+            "irr_pct": results["irr_pct"]
+        }
+
     def _calculate_npv(self, cashflows: List[float]) -> float:
         return sum(cf / (1 + self.config.discount_rate)**t for t, cf in enumerate(cashflows))
 

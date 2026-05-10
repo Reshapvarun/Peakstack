@@ -8,5 +8,6 @@ fastapi
 uvicorn
 matplotlib
 plotly
-
 shap
+numpy-financial
+reportlab

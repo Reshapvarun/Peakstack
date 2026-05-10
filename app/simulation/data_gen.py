@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
 
-def generate_industrial_profile(days=30, site_id="Site_1"):
+def generate_industrial_profile(days=30, site_id="Site_1", annual_kwh=None):
     """
     Generates synthetic industrial energy data with weather context.
     - Load: Base load + Periodic spikes + Random noise + Temp correlation
@@ -49,6 +49,14 @@ def generate_industrial_profile(days=30, site_id="Site_1"):
     load = base_load + daily_cycle + random_spikes + cooling_load + np.random.normal(0, 20, intervals)
     load = np.maximum(load, 50) # Min load 50kW
 
+    # Scale to annual_kwh if provided
+    if annual_kwh:
+        # Calculate current daily average kWh
+        current_daily_kwh = (np.mean(load) * 24)
+        target_daily_kwh = annual_kwh / 365.0
+        scaling_factor = target_daily_kwh / current_daily_kwh
+        load = load * scaling_factor
+
     # 2. Solar Generation (kW)
     # Correlate solar with GHI directly. Efficiency drops slightly at high temps.
     # Base capacity roughly 300kW
@@ -65,3 +73,4 @@ def generate_industrial_profile(days=30, site_id="Site_1"):
         'site_id': site_id
     })
     return df
+

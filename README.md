@@ -1,31 +1,32 @@
-# Peakstack EMS Platform
+# Peakstack — Industrial EMS Platform
 
-Peakstack is an Energy Management System (EMS) designed for industrial High Tension (HT) consumers in India. It optimizes Battery Energy Storage System (BESS) dispatch to reduce energy costs and peak demand charges.
+Rule-based Energy Management System for Indian HT industrial consumers.
+Optimizes BESS dispatch to reduce peak demand charges, arbitrage ToD 
+tariffs, and minimize DG dependency.
 
-## Features
-- **Deterministic Dispatch Engine**: Rule-based battery control (Charge off-peak, Discharge peak).
-- **Industrial Billing Engine**: Accurate calculation of energy and demand charges for Indian HT tariffs.
-- **State-Specific Tariffs**: Pre-configured data for Tamil Nadu, Maharashtra, and Karnataka.
-- **Analysis Pipeline**: Automated 6-stage pipeline for BESS investment assessment.
+## What It Does
+- Simulates battery charge/discharge against real Indian ToD tariffs
+  (TANGEDCO HT-1, MSEDCL HT-2, BESCOM HT)
+- Calculates demand charge savings for HT consumers using kVA-based billing
+- Enforces operational constraints: 20–90% SOC window, 1 cycle/day limit,
+  morning + evening peak discharge, solar-first priority
+- Investor-grade financial model: 10-yr NPV, IRR, degradation, O&M costs
+- Multi-site fleet analysis with 12% IRR hurdle rate screening
 
-## Quick Start
+## Quickstart
+pip install -r requirements.txt
+python validate_logic.py        # single-site audit (energy conservation check)
+python run_business_demo.py     # multi-site enterprise fleet analysis
 
-### Prerequisites
-- Python 3.8+
-- Dependencies: `numpy`, `pandas` (optional, for advanced features)
+## API
+uvicorn app.api.main:app --reload
+# POST /api/v1/analyze  →  savings, payback, NPV, recommendation
+# GET  /api/v1/states   →  supported Indian states
+# GET  /health          →  service status
 
-### Running the Demo
-To see the platform in action with a synthetic industrial load profile and real Tamil Nadu tariff data, run:
+## Tech Stack
+Python · FastAPI · React · NumPy · PuLP · SHAP
 
-```bash
-python run_demo.py
-```
-
-## Directory Structure
-- `app/core/`: Core logic for dispatch and billing.
-- `app/pipeline.py`: Pipeline orchestrator.
-- `config/`: Configuration files (tariffs, etc.).
-- `models/ml/`: Placeholder for future machine learning models.
-
-## License
-Proprietary
+## Status
+MVP complete. Rule-based dispatch engine operational across TN, MH, KA.
+ML forecasting layer (XGBoost load prediction) in development.

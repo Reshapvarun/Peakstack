@@ -40,48 +40,41 @@ class PipelineOrchestrator:
         load_profile = self._generate_synthetic_load(annual_kwh)
         solar_profile = self._generate_solar_profile(solar_kw)
 
-        # 2. Hardened Dispatch Simulation
+        # 2. Hardened Optimization Simulation
         battery_kwh = request.get('battery_kwh', 500)
         battery_power_kw = request.get('battery_power_kw', 125)
         
-        dispatch_engine = RuleBasedDispatchEngine(
-            battery_kwh=battery_kwh,
-            battery_power_kw=battery_power_kw
+        from app.core.optimizer import EnergyOptimizer
+        from app.core.battery import BatteryConfig
+        
+        batt = BatteryConfig(
+            capacity_kwh=battery_kwh,
+            max_power_kw=battery_power_kw
         )
         
-        # Identify target grid limit for peak shaving (e.g., 85th percentile)
-        target_limit = np.percentile(load_profile, 85)
+        optimizer = EnergyOptimizer(load_profile, solar_profile, batt, tariff)
+        result = optimizer.solve()
         
-        dispatch_results = dispatch_engine.run_dispatch(
-            load_profile=load_profile,
-            solar_profile=solar_profile,
-            peak_hours=tariff.peak_hours,
-            offpeak_hours=tariff.offpeak_hours,
-            target_grid_limit_kw=target_limit
-        )
+        if not result:
+            raise Exception(f"Optimization failed for site {request.get('site_name')}")
 
-        # 3. Billing & Savings Analysis
-        billing_engine = BillingEngine(tariff)
-        
-        bill_without_bess = billing_engine.calculate_bill(dispatch_results['grid_import_without_bess'])
-        bill_with_bess = billing_engine.calculate_bill(dispatch_results['grid_import_with_bess'])
-        
-        monthly_savings = bill_without_bess['total_bill'] - bill_with_bess['total_bill']
+        # 3. Savings Analysis
+        daily_savings = result['baseline_cost'] - result['optimized_cost']
+        monthly_savings = daily_savings * 30
         
         # 4. Hardened Financial Analysis
         finance_results = self.finance_engine.run_analysis(monthly_savings, battery_kwh)
         
-        # 5. Economic Justification Check (Phase 5)
+        # 5. Economic Justification Check
         is_justified = finance_results['irr_pct'] > 12.0 # 12% Hurdle Rate
         
-        # 6. Investor-Grade Summary (Phase 6)
+        # 6. Investor-Grade Summary
         summary = self._generate_investor_summary(
             request.get('site_name', 'Industrial Site'),
             tariff,
             battery_kwh,
             battery_power_kw,
-            bill_without_bess,
-            bill_with_bess,
+            result,
             finance_results,
             is_justified
         )
@@ -93,19 +86,25 @@ class PipelineOrchestrator:
             "investor_summary": summary,
             "financials": finance_results,
             "dispatch": {
-                "peak_reduction_kw": dispatch_results['peak_reduction_kw'],
-                "daily_throughput_kwh": dispatch_results['daily_discharge_kwh'],
-                "soc_profile": dispatch_results['battery_soc']
+                "peak_reduction_kw": result['peak_demand_baseline'] - result['peak_demand'],
+                "daily_throughput_kwh": result['battery_util'] * battery_kwh,
+                "soc_profile": [] # Optional in this simplified summary
             },
             "bills": {
-                "baseline": bill_without_bess,
-                "with_bess": bill_with_bess
+                "baseline": {"total_bill": result['baseline_cost'] * 30, "peak_demand_kva": result['peak_demand_baseline']},
+                "with_bess": {"total_bill": result['optimized_cost'] * 30, "peak_demand_kva": result['peak_demand']}
             }
         }
 
-    def _generate_investor_summary(self, site_name, tariff, kwh, kw, bill_old, bill_new, finance, justified) -> str:
+
+    def _generate_investor_summary(self, site_name, tariff, kwh, kw, result, finance, justified) -> str:
         status = "RECOMMENDED" if justified else "NOT RECOMMENDED (Low ROI)"
         
+        bill_old_total = result['baseline_cost'] * 30
+        bill_new_total = result['optimized_cost'] * 30
+        peak_old = result['peak_demand_baseline']
+        peak_new = result['peak_demand']
+
         summary = f"""
 ================================================
 PEAKSTACK EMS ANALYSIS
@@ -116,22 +115,20 @@ STATE: {tariff.state_name} ({tariff.utility})
 STATUS: {status}
 
 ## BASELINE
-Peak Demand:              {bill_old['peak_demand_kva']:.1f} kVA
-Monthly Energy Cost:      INR {bill_old['energy_charge']:,.0f}
-Monthly Demand Charges:   INR {bill_old['demand_charge']:,.0f}
-Total Monthly Bill:       INR {bill_old['total_bill']:,.0f}
+Peak Demand:              {peak_old:.1f} kW
+Total Monthly Bill:       INR {bill_old_total:,.0f}
 
 ## WITH BATTERY EMS
 Battery Size:             {kwh} kWh
 Battery Power:            {kw} kW
 
-Peak Demand:              {bill_new['peak_demand_kva']:.1f} kVA
-Monthly Bill:             INR {bill_new['total_bill']:,.0f}
+Peak Demand:              {peak_new:.1f} kW
+Monthly Bill:             INR {bill_new_total:,.0f}
 
 ## RESULTS
-Monthly Savings:          INR {bill_old['total_bill'] - bill_new['total_bill']:,.0f}
+Monthly Savings:          INR {bill_old_total - bill_new_total:,.0f}
 Annual Savings (Y1):      INR {finance['annual_savings_year1']:,.0f}
-Peak Reduction:           {bill_old['peak_demand_kva'] - bill_new['peak_demand_kva']:.1f} kVA
+Peak Reduction:           {peak_old - peak_new:.1f} kW
 
 ## FINANCIALS
 Estimated CAPEX:          INR {finance['estimated_capex']:,.0f}
@@ -142,6 +139,7 @@ IRR:                      {finance['irr_pct']:.1f}%
 ================================================
 """
         return summary
+
 
     def _generate_synthetic_load(self, annual_kwh: float) -> List[float]:
         # Industrial profile: base 200 kW, peak 600 kW

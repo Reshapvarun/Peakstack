@@ -14,8 +14,11 @@ from app.schemas import (
     ChartDataSchema, KPISchema, RealismSchema, InsightSchema,
     ControlRequestSchema, PortfolioSummarySchema, FacilitySummarySchema
 )
-from app.pipeline import PipelineOrchestrator
-from app.core.data_processor import DataProcessor
+from app.simulation.data_gen import generate_industrial_profile
+from app.core.tariff import load_tariff
+from app.core.battery import BatteryConfig
+from app.core.optimizer import EnergyOptimizer
+from app.core.finance import FinancialEngine, FinanceConfig
 from app.core.auth import (
     get_password_hash, verify_password, create_access_token, 
     get_current_user_email, get_current_user_from_cookie
@@ -25,7 +28,9 @@ from app.db.models import User, AnalysisRecord
 from sqlalchemy.orm import Session
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi import File, UploadFile, Depends, Response, BackgroundTasks
+import numpy as np
 import os
+import json
 import uuid
 from typing import Optional, List
 
@@ -161,51 +166,70 @@ async def upload_data(
         if os.path.exists(file_path): os.remove(file_path)
         raise HTTPException(status_code=400, detail=f"Invalid CSV format: {str(e)}")
 
-@router.post(
-    "/analyze",
-    status_code=202,
-    summary="Analyze BESS (Background Job)",
-)
-async def analyze(
-    request: AnalysisRequest,
-    background_tasks: BackgroundTasks,
-    email: str = Depends(get_current_user_from_cookie),
-    db: Session = Depends(get_db)
-) -> dict:
-    """Protected analysis orchestration (Background Job)"""
-    if not check_rate_limit(email, 5): # 5 analyses per min
-        raise HTTPException(status_code=429, detail="Rate limit exceeded. Please wait.")
+@router.post("/analyze")
+async def analyze(request: AnalysisRequest):
+    """
+    Investor-ready analysis endpoint using hardened rule-based engines.
+    """
+    # 1. Generate or accept load profile
+    if request.load_profile:
+        load = np.array(request.load_profile)
+        solar = np.zeros(len(load))
+    else:
+        df = generate_industrial_profile(days=1, annual_kwh=request.annual_kwh)
+        load = df['load_kw'].values
+        solar = df['solar_kw'].values
 
-    user = db.query(User).filter(User.email == email).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    # 1. Create Job Record
-    job_id = str(uuid.uuid4())
-    analysis_record = AnalysisRecord(
-        id=None,
-        user_id=user.id,
-        status="processing",
-        analysis_name=request.analysis_name or f"Analysis {job_id[:8]}",
-        csv_file_id=request.csv_file_id,
-        inputs=request.dict()
+    # 2. Load tariff for the requested state
+    tariff = load_tariff(request.state)
+
+    # 3. Run optimizer
+    batt = BatteryConfig(
+        capacity_kwh=request.battery_kwh,
+        max_power_kw=request.battery_power_kw
     )
-    db.add(analysis_record)
-    db.commit()
-    db.refresh(analysis_record)
+    optimizer = EnergyOptimizer(load, solar, batt, tariff)
+    result = optimizer.solve()
     
-    # 2. Run heavy logic in background
-    background_tasks.add_task(
-        _run_heavy_analysis,
-        job_record_id=analysis_record.id,
-        request=request
-    )
-    
+    if not result:
+        raise HTTPException(status_code=500, detail="Optimization failed")
+
+    # 4. Run financial model
+    fin = FinancialEngine(FinanceConfig())
+    daily_savings = result['baseline_cost'] - result['optimized_cost']
+    roi = fin.calculate_roi(daily_savings, request.battery_kwh)
+
+    # 5. Return structured response
     return {
-        "job_id": analysis_record.id,
-        "status": "processing",
-        "message": "Analysis started in background"
+        "monthly_savings_inr": round(daily_savings * 30, 2),
+        "annual_savings_inr": round(daily_savings * 365, 2),
+        "peak_demand_kva_baseline": round(result['peak_demand_baseline'], 2),
+        "peak_demand_kva_with_bess": round(result['peak_demand'], 2),
+        "peak_reduction_pct": round(
+            (result['peak_demand_baseline'] - result['peak_demand'])
+            / result['peak_demand_baseline'] * 100, 1
+        ),
+        "payback_years": round(roi['payback_period_years'], 2),
+        "roi_10yr_pct": round(roi['annual_roi_pct'], 1),
+        "npv_10yr_inr": round(roi['net_present_value_10yr'], 2),
+        "irr_pct": round(roi.get('irr_pct', 0), 1),
+        "recommendation": "INSTALL" if roi['payback_period_years'] < 6 else "INVESTIGATE"
     }
+
+@router.get("/health")
+def health():
+    return {"status": "ok", "version": "1.0.0", "engine": "rule-based-dispatch"}
+
+@router.get("/states")
+def get_supported_states():
+    # Read the keys from config/state_tariffs.json
+    import json, os
+    config_path = "config/state_tariffs.json"
+    if not os.path.exists(config_path):
+        return {"supported_states": ["maharashtra", "karnataka", "tamil_nadu"]}
+    with open(config_path) as f:
+        tariffs = json.load(f)
+    return {"supported_states": list(tariffs.keys())}
 
 def _run_heavy_analysis(job_record_id: int, request: AnalysisRequest):
     """Background execution of the full pipeline (runs in threadpool)"""
