@@ -1,4 +1,0 @@
-[core]
-	editor = \"C:\\Users\\Varun\\AppData\\Local\\Programs\\Microsoft VS Code\\bin\\code\" --wait
-[safe]
-	directory = *

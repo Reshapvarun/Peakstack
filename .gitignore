@@ -1,22 +1,29 @@
 # Python
 __pycache__/
+*.pyc
+*.pyo
 *.py[cod]
 *$py.class
 *.pkl
 *.joblib
+
+# ML Models
+models/ml/*.pkl
+models/ml/*.joblib
+
+# Environment
 .env
+.venv/
+venv/
+env/
+ENV/
 
 # Distribution / build
 dist/
 build/
 *.egg-info/
 node_modules/
-
-# Environment
-.venv/
-venv/
-env/
-ENV/
+peakstack-ui/dist/
 
 # IDEs
 .vscode/
