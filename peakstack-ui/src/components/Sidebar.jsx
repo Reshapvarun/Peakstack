@@ -49,7 +49,7 @@ export default function Sidebar({ inputs, updateInput, onAnalyze, loading, error
           <input 
             type="number" 
             value={inputs.annual_kwh} 
-            onChange={(e) => updateInput('annual_kwh', e.target.value)}
+            onChange={(e) => updateInput('annual_kwh', parseFloat(e.target.value) || 0)}
             disabled={loading}
           />
         </div>
@@ -59,7 +59,7 @@ export default function Sidebar({ inputs, updateInput, onAnalyze, loading, error
           <input 
             type="number" 
             value={inputs.battery_kwh} 
-            onChange={(e) => updateInput('battery_kwh', e.target.value)}
+            onChange={(e) => updateInput('battery_kwh', parseFloat(e.target.value) || 0)}
             disabled={loading}
           />
         </div>
@@ -69,7 +69,7 @@ export default function Sidebar({ inputs, updateInput, onAnalyze, loading, error
           <input 
             type="number" 
             value={inputs.battery_power_kw} 
-            onChange={(e) => updateInput('battery_power_kw', e.target.value)}
+            onChange={(e) => updateInput('battery_power_kw', parseFloat(e.target.value) || 0)}
             disabled={loading}
           />
         </div>

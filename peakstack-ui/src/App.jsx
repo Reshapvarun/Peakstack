@@ -19,17 +19,23 @@ export default function App() {
     document.body.className = dark ? "dark" : "";
   }, [dark]);
 
+  const [inputs, setInputs] = useState({
+    battery_kwh: 600,
+    battery_kw: 200,
+    solar_kw: 400,
+    wind_kw: 100
+  });
+
   const runAnalysis = async () => {
     try {
-      const res = await axios.post("http://127.0.0.1:8000/analyze", {
-        battery_kwh: 600,
-        battery_kw: 200,
-        solar_kw: 400,
-        wind_kw: 100
+      const res = await axios.post("https://web-production-62a0e.up.railway.app/api/v1/analyze", {
+        ...inputs,
+        state: "tamil_nadu" // default for legacy
       });
       setData(res.data);
     } catch (err) {
-      alert("Backend not running");
+      console.error(err);
+      alert("Analysis failed. Ensure backend is live.");
     }
   };
 
