@@ -14,6 +14,8 @@ from app.schemas import (
     ChartDataSchema, KPISchema, RealismSchema, InsightSchema,
     ControlRequestSchema, PortfolioSummarySchema, FacilitySummarySchema
 )
+from app.pipeline import PipelineOrchestrator
+from app.core.data_processor import DataProcessor
 from app.simulation.data_gen import generate_industrial_profile
 from app.core.tariff import load_tariff
 from app.core.battery import BatteryConfig
