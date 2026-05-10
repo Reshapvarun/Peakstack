@@ -532,7 +532,7 @@ def _build_analysis_response(job_id: int, request: AnalysisRequest, pipeline_con
 
 # ================= CONTROL & PORTFOLIO APIs (v4) =================
 
-@router.post("/control/{device_type}", tags=["Control"], dependencies=[Depends(get_current_user_from_cookie)] if AUTH_ENABLED else [])
+@router.post("/control/{device_type}", response_model=None, tags=["Control"], dependencies=[Depends(get_current_user_from_cookie)] if AUTH_ENABLED else [])
 async def send_control_signal(device_type: str, signal: ControlRequestSchema, user: User = None):
     """
     Execute real-time control logic for BESS, DG, or Grid.
