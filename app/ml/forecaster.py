@@ -3,10 +3,7 @@ import pandas as pd
 import joblib
 import os
 from datetime import datetime
-try:
-    import shap
-except ImportError:
-    shap = None
+# Note: ML imports (shap) are performed lazily inside methods to optimize startup time
 
 class EnergyForecaster:
     """
@@ -33,11 +30,16 @@ class EnergyForecaster:
         # Cache explainers for performance optimization
         self.load_explainer = None
         self.solar_explainer = None
-        if shap is not None:
+        
+        # Lazy SHAP setup
+        try:
+            import shap
             if self.load_model is not None:
                 self.load_explainer = shap.TreeExplainer(self.load_model)
             if self.solar_model is not None:
                 self.solar_explainer = shap.TreeExplainer(self.solar_model)
+        except ImportError:
+            print("Warning: SHAP not found. Explainability disabled.")
 
     def _load_model(self, filename):
         path = os.path.join(self.model_dir, filename)

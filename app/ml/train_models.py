@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-import xgboost as xgb
+# xgboost imported lazily inside function
 import joblib
 import os
 from datetime import datetime
@@ -10,6 +10,7 @@ def train_and_save_models():
     Standalone training script to build the ML models.
     Updated for Phase 1: Incorporating short-term lags, rolling means, and weather.
     """
+    import xgboost as xgb
     print("Starting ML Model Training Pipeline (Phase 1 Upgrades)...")
 
     # 1. Generate / Load Training Data

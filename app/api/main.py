@@ -73,8 +73,11 @@ def test_route():
     return {"message": "API is working"}
 
 @app.get("/health")
-def health_check():
-    return {"status": "healthy", "version": "2.0.0-saas"}
+def health():
+    return {
+        "status": "ok",
+        "version": "2.0.0-saas"
+    }
 
 # --- SINGLE DOMAIN SERVING ---
 
