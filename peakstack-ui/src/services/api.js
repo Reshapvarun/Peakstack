@@ -3,7 +3,7 @@
  * Hardened for production with robust parsing and job polling
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
+const API_BASE_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, "") || '/api/v1';
 
 /**
  * Robust response parsing helper

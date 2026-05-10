@@ -1,4 +1,4 @@
-const API_BASE = import.meta.env.VITE_API_URL || "https://web-production-62a0e.up.railway.app";
+const API_BASE = (import.meta.env.VITE_API_URL || "https://web-production-62a0e.up.railway.app").replace(/\/$/, "");
 
 export async function analyzesite(payload) {
   const res = await fetch(`${API_BASE}/api/v1/analyze`, {

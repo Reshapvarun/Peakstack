@@ -6,7 +6,7 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const API_URL = import.meta.env.VITE_API_URL || '/api/v1';
+  const API_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, "") || '/api/v1';
 
   useEffect(() => {
     fetchUser();
