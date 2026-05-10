@@ -1,282 +1,93 @@
-import React from 'react';
-import { motion } from 'framer-motion';
+import React, { useEffect, useState } from 'react';
+import { getSupportedStates } from '../api/client';
 import logo from '../assets/logo.png';
 
-export default function Sidebar({ inputs, updateInput, loading, uploading, setUploading, productMode, onAnalyze }) {
-  const {
-    state, industry, battery_kwh, battery_power_kw, solar_kw, annual_kwh,
-    tariff_energy, demand_charge, peak_tariff_difference,
-    battery_cost_per_kwh, solar_cost_per_kwh, utilization_factor,
-    use_real_data,
-  } = inputs;
+export default function Sidebar({ inputs, updateInput, onAnalyze, loading, error }) {
+  const [states, setStates] = useState(['tamil_nadu', 'maharashtra', 'karnataka']);
 
-  const STATES = [
-    { id: 'maharashtra', name: 'Maharashtra' },
-    { id: 'karnataka',   name: 'Karnataka'   },
-    { id: 'tamil_nadu',  name: 'Tamil Nadu'  },
-    { id: 'delhi',       name: 'Delhi'       },
-    { id: 'rajasthan',   name: 'Rajasthan'   },
-    { id: 'gujarat',     name: 'Gujarat'     },
-  ];
-
-  const applyScenario = (overrides) =>
-    Object.entries(overrides).forEach(([k, v]) => updateInput(k, v));
+  useEffect(() => {
+    const fetchStates = async () => {
+      try {
+        const data = await getSupportedStates();
+        if (data.supported_states) {
+          setStates(data.supported_states);
+        }
+      } catch (err) {
+        console.error("Failed to load states", err);
+      }
+    };
+    fetchStates();
+  }, []);
 
   return (
-    <motion.aside
-      className="sidebar"
-      initial={{ x: -320 }}
-      animate={{ x: 0 }}
-      transition={{ duration: 0.4, ease: 'easeOut' }}
-    >
-      {/* Logo */}
+    <aside className="sidebar">
       <div className="logo-section">
         <img src={logo} className="logo-img" alt="Peakstack" />
-        <div style={{ fontSize: 10, opacity: 0.5, marginTop: 4 }}>v3.0 (Enterprise Energy OS)</div>
+        <div style={{ fontSize: 10, opacity: 0.5, marginTop: 4 }}>v2.0 (Investor Ready)</div>
       </div>
 
-      {/* ── Mode Indicator ── */}
-      <div className="sidebar-group" style={{ padding: '10px 12px', borderRadius: 8,
-        background: productMode === 'operations' ? 'rgba(99,102,241,0.1)' : 'rgba(16,185,129,0.1)',
-        border: `1px solid ${productMode === 'operations' ? 'rgba(99,102,241,0.3)' : 'rgba(16,185,129,0.3)'}`
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 16 }}>{productMode === 'operations' ? '🔋' : '📊'}</span>
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: productMode === 'operations' ? '#818cf8' : '#10b981' }}>
-              {productMode === 'operations' ? 'OPERATIONS / AI MODE' : 'INVESTMENT ANALYSIS'}
-            </div>
-            <div style={{ fontSize: 10, opacity: 0.6 }}>
-              {productMode === 'operations' ? 'Real data required · ML + MILP active' : 'Synthetic data · Fast financial model'}
-            </div>
-          </div>
+      <div className="sidebar-group">
+        <h3>FACILITY CONFIGURATION</h3>
+        
+        <div className="form-group">
+          <label>Location (State/UT)</label>
+          <select 
+            value={inputs.state} 
+            onChange={(e) => updateInput('state', e.target.value)}
+            disabled={loading}
+          >
+            {states.map(s => (
+              <option key={s} value={s}>
+                {s.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+              </option>
+            ))}
+          </select>
         </div>
 
-        {/* CSV Uploader — Operations only */}
-        {productMode === 'operations' && (
-          <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <label className="btn-ghost" style={{ textAlign: 'center', cursor: 'pointer', display: 'block', opacity: (loading || uploading) ? 0.7 : 1, fontSize: 12 }}>
-              {uploading ? '⏳ Uploading...' : '📁 Upload Facility CSV'}
-              <input 
-                type="file" 
-                accept=".csv" 
-                style={{ display: 'none' }} 
-                disabled={loading || uploading}
-                onChange={async (e) => {
-                  const file = e.target.files[0];
-                  if (!file) return;
-                  const formData = new FormData();
-                  formData.append('file', file);
-                  setUploading(true);
-                  try {
-                    const token = localStorage.getItem('token');
-                    const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1'}/upload-data`, {
-                      method: 'POST',
-                      headers: { 'Authorization': `Bearer ${token}` },
-                      body: formData
-                    });
-                    const data = await res.json();
-                    updateInput('csv_file_id', data.file_id);
-                    updateInput('use_real_data', true);
-                    alert(`✅ Loaded ${data.preview.count} data points!`);
-                  } catch (err) {
-                    alert('Failed to upload CSV. Please check format.');
-                  } finally {
-                    setUploading(false);
-                  }
-                }}
-              />
-            </label>
-            {inputs.csv_file_id && (
-              <div style={{ fontSize: 10, color: '#10b981', textAlign: 'center' }}>
-                ✅ File linked: {inputs.csv_file_id.slice(0, 8)}...
-              </div>
-            )}
-            {!inputs.csv_file_id && (
-              <div style={{ fontSize: 10, color: '#f59e0b', textAlign: 'center' }}>
-                ⚠️ Upload CSV to run analysis
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      <div className="sidebar-group">
-        <h3>Location &amp; Industry</h3>
-
-        <label className="sidebar-label">State / UT</label>
-        <select
-          value={state}
-          onChange={e => updateInput('state', e.target.value)}
-          disabled={loading}
-        >
-          {STATES.map(s => (
-            <option key={s.id} value={s.id}>{s.name}</option>
-          ))}
-        </select>
-
-        <label className="sidebar-label">Industry Type</label>
-        <select
-          value={industry}
-          onChange={e => updateInput('industry', e.target.value)}
-          disabled={loading}
-        >
-          <option value="manufacturing">Manufacturing (1.8× peak)</option>
-          <option value="commercial">Commercial (1.3× peak)</option>
-          <option value="hospitality">Hospitality (1.3× peak)</option>
-          <option value="other">Other (1.3× peak)</option>
-        </select>
-
-        <label className="sidebar-label">Battery Chemistry (v3)</label>
-        <select
-          value={inputs.chemistry || 'lfp'}
-          onChange={e => updateInput('chemistry', e.target.value)}
-          disabled={loading}
-        >
-          <option value="lfp">LFP (Li-Fe-PO4) - Stable & Proven</option>
-          <option value="na_ion">Na-ion (Sodium-Ion) - Cost Efficient</option>
-        </select>
-      </div>
-
-      {/* ── Quick Scenarios ── */}
-      <div className="sidebar-group">
-        <h3>Quick Scenarios</h3>
-        <div className="quick-scenarios">
-          <button
-            className="scenario-btn"
+        <div className="form-group">
+          <label>Annual Consumption (kWh)</label>
+          <input 
+            type="number" 
+            value={inputs.annual_kwh} 
+            onChange={(e) => updateInput('annual_kwh', e.target.value)}
             disabled={loading}
-            onClick={() => applyScenario({
-              battery_kwh: 1000, battery_power_kw: 500,
-              solar_kw: 500, demand_charge: 450,
-              industry: 'manufacturing',
-            })}
-          >🏭 High Peak Factory</button>
+          />
+        </div>
 
-          <button
-            className="scenario-btn"
+        <div className="form-group">
+          <label>Battery Capacity (kWh)</label>
+          <input 
+            type="number" 
+            value={inputs.battery_kwh} 
+            onChange={(e) => updateInput('battery_kwh', e.target.value)}
             disabled={loading}
-            onClick={() => applyScenario({
-              battery_kwh: 400, battery_power_kw: 200,
-              solar_kw: 800, peak_tariff_difference: 4.5,
-              state: 'tamil_nadu',
-            })}
-          >☀️ Solar Rich Plant</button>
+          />
+        </div>
 
-          <button
-            className="scenario-btn"
+        <div className="form-group">
+          <label>Battery Power Rating (kW)</label>
+          <input 
+            type="number" 
+            value={inputs.battery_power_kw} 
+            onChange={(e) => updateInput('battery_power_kw', e.target.value)}
             disabled={loading}
-            onClick={() => applyScenario({
-              battery_kwh: 250, battery_power_kw: 100,
-              solar_kw: 100, tariff_energy: 10,
-              industry: 'commercial',
-            })}
-          >🏢 Commercial Site</button>
+          />
         </div>
       </div>
 
-      {/* ── System Parameters ── */}
-      <div className="sidebar-group">
-        <h3>System Parameters</h3>
+      {error && (
+        <div style={{ color: '#ef4444', fontSize: '12px', marginBottom: '16px', padding: '10px', background: 'rgba(239,68,68,0.1)', borderRadius: '4px' }}>
+          ⚠️ {error}
+        </div>
+      )}
 
-        <SliderRow
-          label="Battery Capacity" val={`${battery_kwh} kWh`}
-          min={100} max={2000} step={50} value={battery_kwh}
-          onChange={v => updateInput('battery_kwh', +v)} disabled={loading}
-        />
-        <SliderRow
-          label="Battery Power" val={`${battery_power_kw} kW`}
-          min={50} max={1000} step={10} value={battery_power_kw}
-          onChange={v => updateInput('battery_power_kw', +v)} disabled={loading}
-        />
-        <SliderRow
-          label="Solar Capacity" val={`${solar_kw} kW`}
-          min={0} max={2000} step={50} value={solar_kw}
-          onChange={v => updateInput('solar_kw', +v)} disabled={loading}
-        />
-        <SliderRow
-          label="Annual Consumption" val={`${Math.round(annual_kwh / 1000)}k kWh`}
-          min={100000} max={5000000} step={50000} value={annual_kwh}
-          onChange={v => updateInput('annual_kwh', +v)} disabled={loading}
-        />
-        <SliderRow
-          label="Optimization Horizon" val={`${inputs.horizon_days || 1} Days`}
-          min={1} max={7} step={1} value={inputs.horizon_days || 1}
-          onChange={v => updateInput('horizon_days', +v)} disabled={loading}
-        />
-        <SliderRow
-          label="Utilisation Factor" val={`${(utilization_factor * 100).toFixed(0)}%`}
-          min={0.5} max={1.0} step={0.05} value={utilization_factor}
-          onChange={v => updateInput('utilization_factor', +v)} disabled={loading}
-        />
-      </div>
-
-      {/* ── Financial Inputs ── */}
-      <div className="sidebar-group">
-        <h3>Financial Inputs</h3>
-
-        <SliderRow
-          label="Base Tariff" val={`₹${tariff_energy}/kWh`}
-          min={4} max={15} step={0.5} value={tariff_energy}
-          onChange={v => updateInput('tariff_energy', +v)} disabled={loading}
-        />
-        <SliderRow
-          label="Peak Delta" val={`₹${peak_tariff_difference}/kWh`}
-          min={0} max={8} step={0.1} value={peak_tariff_difference}
-          onChange={v => updateInput('peak_tariff_difference', +v)} disabled={loading}
-        />
-        <SliderRow
-          label="Demand Charge" val={`₹${demand_charge}/kVA`}
-          min={100} max={1000} step={10} value={demand_charge}
-          onChange={v => updateInput('demand_charge', +v)} disabled={loading}
-        />
-        <SliderRow
-          label="Solar LCOE" val={`₹${Number(solar_cost_per_kwh).toFixed(1)}/kWh`}
-          min={2.5} max={6.0} step={0.1} value={solar_cost_per_kwh}
-          onChange={v => updateInput('solar_cost_per_kwh', +v)} disabled={loading}
-        />
-        <SliderRow
-          label="BESS CapEx / kWh" val={`₹${Number(battery_cost_per_kwh).toLocaleString('en-IN')}`}
-          min={10000} max={40000} step={500} value={battery_cost_per_kwh}
-          onChange={v => updateInput('battery_cost_per_kwh', +v)} disabled={loading}
-        />
-        <SliderRow
-          label="DG Energy Cost" val={`₹${inputs.dg_cost_per_kwh || 20}/kWh`}
-          min={10} max={50} step={1} value={inputs.dg_cost_per_kwh || 20}
-          onChange={v => updateInput('dg_cost_per_kwh', +v)} disabled={loading}
-        />
-        <SliderRow
-          label="DG Runtime" val={`${inputs.dg_hours_per_day || 2} hrs/day`}
-          min={0} max={12} step={0.5} value={inputs.dg_hours_per_day || 2}
-          onChange={v => updateInput('dg_hours_per_day', +v)} disabled={loading}
-        />
-      </div>
-
-      {/* Analyze button — sticks to bottom */}
-      <button
-        className="btn-analyze"
+      <button 
+        className="btn-analyze" 
         onClick={onAnalyze}
         disabled={loading}
       >
-        {loading ? '⏳ Analyzing…' : '▶ Run Investment Analysis'}
+        {loading ? '⏳ PROCESSING...' : '🚀 RUN INVESTMENT ANALYSIS'}
       </button>
-    </motion.aside>
-  );
-}
-
-/* ── Reusable slider row ── */
-function SliderRow({ label, val, min, max, step, value, onChange, disabled }) {
-  return (
-    <div className="range-group">
-      <div className="range-header">
-        <span className="sidebar-label" style={{ marginBottom: 0 }}>{label}</span>
-        <span className="range-val">{val}</span>
-      </div>
-      <input
-        type="range"
-        min={min} max={max} step={step} value={value}
-        onChange={e => onChange(e.target.value)}
-        disabled={disabled}
-      />
-    </div>
+    </aside>
   );
 }

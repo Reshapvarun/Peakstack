@@ -202,6 +202,11 @@ async def analyze(request: AnalysisRequest):
     roi = fin.calculate_roi(daily_savings, request.battery_kwh)
 
     # 5. Return structured response
+    timestamps = [f"{(i//4):02d}:{(i%4)*15:02d}" for i in range(len(load))]
+    
+    # Calculate baseline grid import for each interval
+    grid_no_bess = np.maximum(0, load - solar)
+    
     return {
         "monthly_savings_inr": round(daily_savings * 30, 2),
         "annual_savings_inr": round(daily_savings * 365, 2),
@@ -215,7 +220,17 @@ async def analyze(request: AnalysisRequest):
         "roi_10yr_pct": round(roi['annual_roi_pct'], 1),
         "npv_10yr_inr": round(roi['net_present_value_10yr'], 2),
         "irr_pct": round(roi.get('irr_pct', 0), 1),
-        "recommendation": "INSTALL" if roi['payback_period_years'] < 6 else "INVESTIGATE"
+        "recommendation": "INSTALL" if roi['payback_period_years'] < 6 else "INVESTIGATE",
+        "daily_chart": {
+            "timestamps": timestamps,
+            "load_kw": load.tolist(),
+            "solar_generation_kw": solar.tolist(),
+            "battery_charge_kw": result['bess_char'],
+            "battery_discharge_kw": [-x for x in result['bess_dis']], # Negative for chart bars
+            "grid_import_kw": result['grid_import'],
+            "grid_import_without_bess_kw": grid_no_bess.tolist(),
+            "battery_soc_percent": result['soc_pct']
+        }
     }
 
 @router.get("/health")

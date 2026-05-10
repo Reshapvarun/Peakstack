@@ -87,6 +87,7 @@ class EnergyOptimizer:
             "export_revenue": 0,
             "total_cost": pulp.value(prob.objective),
             "battery_util": (sum(bess_dis[t].varValue for t in range(self.intervals)) * 0.25) / self.battery.capacity_kwh,
+            "soc_pct": [pulp.value(soc[t]) / self.battery.capacity_kwh * 100 for t in range(self.intervals)],
             "policy_mode": getattr(self.policy, "mode", "BTM_STRICT")
         }
 
