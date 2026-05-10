@@ -43,7 +43,11 @@ app = FastAPI(title="Peakstack Energy OS", version="2.0.0-saas")
 # Public CORS for Demo Access
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "https://peakstackui.vercel.app",
+        "http://localhost:3000",
+        "http://localhost:5173",
+    ],
     allow_credentials=False,
     allow_methods=["GET", "POST"],
     allow_headers=["Content-Type"],
